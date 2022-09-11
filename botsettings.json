@@ -1,0 +1,23 @@
+{
+
+    "sample": {
+        "mode" : "dry-run",
+        "active" : true
+    },
+
+    "attritionTrader": {
+        "desiredAlpha": 0.5,
+        "mode" : "bet",
+        "active" : true
+    },
+
+    "streaker": {
+    },
+
+    "whaler" : {
+
+    }
+
+
+} 
+

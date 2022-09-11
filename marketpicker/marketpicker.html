@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<!--
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+-->
+<html>
+
+<head>
+    <title>MarketPicker</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./marketpicker.css"/>
+</head>
+
+<body>
+    <div id="root">
+        <div class="buttonPanel">
+            <button class="marketClassifier" >slopingUp</button>
+            <button class="marketClassifier" >indeterminate</button>
+            <button class="marketClassifier" >slopingDown</button>
+            <button class="marketClassifier" >skip</button>
+            <button class="exitButton" >exit</button>
+        </div>
+        <div id="json_output"></div>
+        <iframe src="http://www.manifold.markets" width="100%" height="600"></iframe>
+    </div>
+    
+    <script type="module" src="marketpicker.js"></script>
+</body>
+
+</html>
