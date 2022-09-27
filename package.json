@@ -1,7 +1,7 @@
 {
   "name": "manifold-bots",
   "version": "1.0.0",
-  "description": "",
+  "description": "About 20% of Manifold markets take the form \"Will [EVENT] happen by [DATE].\" In theory, when the event in question is unscheduled, the probabilities in these markets should slope gradually downwards over the course of their lifespan. The event has failed to happen and the remaining time for it to do so has diminished.",
   "main": "attritiontrader.js",
   "type": "module",
   "scripts": {
@@ -11,9 +11,18 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "dateformat": "^5.0.3",
     "dotenv": "^16.0.2",
     "fs": "^0.0.1-security",
     "node-fetch": "^3.2.10",
     "promises": "^0.2.5"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mwhea/Manifold_Trading_Bots.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mwhea/Manifold_Trading_Bots/issues"
+  },
+  "homepage": "https://github.com/mwhea/Manifold_Trading_Bots#readme"
 }

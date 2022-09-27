@@ -64,7 +64,7 @@ export const getFullMarket = async (id) => {
   
       allMarkets.push(...markets)
       before = markets[markets.length - 1].id
-      //console.log('Loaded', allMarkets.length, 'markets', 'before', before)
+      
   
       if (markets.length < 1000) break
     }
