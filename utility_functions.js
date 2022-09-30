@@ -1,5 +1,5 @@
 import dateFormat, { masks } from "dateformat";
-
+import {writeFile} from 'fs/promises';
 
 export function isBettable(mkt){
     if(mkt.isResolved == true){return false;}
@@ -63,12 +63,24 @@ export function betWithinInterval(bet, time1, time2){
 
 export function isUnfilledLimitOrder(bet){
 
-    if (bet.amount==0){
+    if(bet.isRedemption){
+        return false;
+    }
+    else if (bet.amount==0){
         return true;
     }
     else {
         return false;
     }
+}
+
+export function scale(number, inMin, inMax, outMin, outMax) {
+    return (number - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
+}
+
+// currently unused, it's sometimes helpful while debugging to save the state of a market for inspection/
+export function logMarket(mkt){
+    writeFile(`/temp/markets_${sanitizeFilename(mkt.question)}.json`, JSON.stringify(mkt));
 }
 
 //I suspect that whether or not to take the 
