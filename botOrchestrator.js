@@ -8,6 +8,10 @@ import {
 } from "./whaler.js";
 
 import {
+    velocitySlayer
+} from "./velocitySlayer.js";
+
+import {
     readFile,
     writeFile
 } from 'fs/promises';
@@ -28,6 +32,7 @@ let botSettings = JSON.parse(
 const HOUR = 60 * 60 * 1000;
 botSettings.streaker.runEvery = HOUR * 6;
 botSettings.attritionTrader.runEvery = HOUR;
+botSettings.velocitySlayer.runEvery = 1000 * 20;
 
 let lastMktList = await getAllMarkets();
 let currentMktList = [];
@@ -42,15 +47,27 @@ while (true) {
     //streaker();
     //attritionTrade();
 
-    try { lastMktList = await huntWhales(lastMktList); }
-    catch (e) {
-        console.log(e);
-        lastMktList = null;
-        while (lastMktList == null) {
-            try { lastMktList = await getAllMarkets(); }
-            catch (e) {
-                await sleep(CYCLETIME);
+    if (botSettings.whaler.active) {
+        try { lastMktList = await huntWhales(lastMktList); }
+        catch (e) {
+            console.log(e);
+            lastMktList = null;
+            while (lastMktList == null) {
+                try { lastMktList = await getAllMarkets(); }
+                catch (e) {
+                    await sleep(CYCLETIME);
+                }
             }
+        }
+    }
+
+    if (botSettings.velocitySlayer.active && cycles * CYCLETIME > botSettings.velocitySlayer.runEvery * vsRuns) {
+        try {
+            await velocitySlayer();
+            vsRuns++;
+        }
+        catch (e) {
+            console.log(e);
         }
     }
 
@@ -64,5 +81,3 @@ while (true) {
     await sleep(CYCLETIME);
 
 }
-
-
