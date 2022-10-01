@@ -4,8 +4,8 @@ import {
 } from "./api.js";
 
 import {
-    huntWhales
-} from "./whaler.js";
+    Whaler
+} from "./Whaler.js";
 
 import {
     velocitySlayer
@@ -34,13 +34,15 @@ botSettings.streaker.runEvery = HOUR * 6;
 botSettings.attritionTrader.runEvery = HOUR;
 botSettings.velocitySlayer.runEvery = 1000 * 20;
 
-let lastMktList = await getAllMarkets();
-let currentMktList = [];
+
 let cycles = 0;
 let me = await getMe();
 let startingFunds = me.balance;
 //let runTill = new Date('09/25/2022 07:00')
 let vsRuns = 0;
+
+let whaler = new Whaler(botSettings.whaler);
+await whaler.additionalConstruction();
 
 while (true) {
 
@@ -48,17 +50,7 @@ while (true) {
     //attritionTrade();
 
     if (botSettings.whaler.active) {
-        try { lastMktList = await huntWhales(lastMktList); }
-        catch (e) {
-            console.log(e);
-            lastMktList = null;
-            while (lastMktList == null) {
-                try { lastMktList = await getAllMarkets(); }
-                catch (e) {
-                    await sleep(CYCLETIME);
-                }
-            }
-        }
+        await whaler.huntWhales();
     }
 
     if (botSettings.velocitySlayer.active && cycles * CYCLETIME > botSettings.velocitySlayer.runEvery * vsRuns) {

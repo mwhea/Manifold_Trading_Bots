@@ -2,6 +2,7 @@ import dateFormat, { masks } from "dateformat";
 import {writeFile} from 'fs/promises';
 
 export function isBettable(mkt){
+
     if(mkt.isResolved == true){return false;}
 
     //is a markets close date in the past
