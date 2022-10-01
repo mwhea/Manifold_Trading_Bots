@@ -40,6 +40,8 @@ export class Whaler {
         this.currentMarkets = undefined;
         this.lastMarkets = undefined;
 
+        this.cachedUsers = [];
+
         this.clock = new Date();
         this.ellipsesDisplay = 0;
 
@@ -327,7 +329,7 @@ export class Whaler {
                                     outcome: "",
                                     contractId: betToScan.contractId,
                                     userId: betToScan.userId,
-                                    bettor: getUserById(betToScan.userId),
+                                    bettor: "",
                                     probBefore: betToScan.probBefore,
                                     probAfter: betToScan.probAfter,
                                     startTime: betToScan.createdTime,
@@ -338,6 +340,13 @@ export class Whaler {
                                     noobScore: undefined,
                                     constituentBets: []
                                 };
+
+                                thisAggregate.bettor = this.cachedUsers.find((u) => { betToScan.userId == u.id });
+                                if (thisAggregate.bettor === undefined) {
+                                    this.cachedUsers.push(await getUserById(betToScan.userId));
+                                    thisAggregate.bettor = this.cachedUsers.find((u) => { return betToScan.userId === u.id; });
+                                }
+
                                 aggregateBets.push(thisAggregate);
                                 betPlacers.push(getUserById(betToScan.userId));
                             }
@@ -416,7 +425,9 @@ export class Whaler {
 
                             //let bettor = getUserById(aggregateBets[i].userId);
                             aggregateBets[i].buyingPower = discountDoublings(aggregateBets[i]);
-                            let bettor = await aggregateBets[i].bettor;
+
+                            let bettor = aggregateBets[i].bettor;
+
                             aggregateBets[i].bettor = bettor.name;
                             aggregateBets[i].trustworthiness = this.isMarketLegit(currentMarket, bettor); //returns value from zero to one;
                             aggregateBets[i].noobScore = this.wasThisBetPlacedByANoob(bettor, aggregateBets[i].constituentBets) //returns value from zero to one;
