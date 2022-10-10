@@ -3,7 +3,9 @@ import {
     getUserById,
     getFullMarket,
     placeBet,
-    cancelBet
+    cancelBet,
+    latestBets,
+    getAllUsers
 } from './api.js';
 
 import 'dotenv/config'
@@ -19,6 +21,7 @@ import {
     roundToPercent,
     consoleReport,
     isUnfilledLimitOrder,
+    sleep,
     sanitizeFilename
 } from './utility_functions.js';
 
@@ -30,8 +33,6 @@ const MIN_P_MOVEMENT = .0375;
 
 export class Whaler {
 
-
-
     constructor(whalerSettings) {
         this.settings = whalerSettings;
 
@@ -41,24 +42,79 @@ export class Whaler {
         this.lastMarkets = undefined;
 
         this.cachedUsers = [];
+        this.allUsers = [];
+        this.allMarkets = [];
+        this.recentMarkets = [];
+
+        this.lastScannedBet = undefined;
 
         this.clock = new Date();
         this.ellipsesDisplay = 0;
 
         //it turns out everything pertaining to deadmarkets saves me only 4 equality comparisons per run, so it should be removed.
-        this.deadMarkets = 0;
+        // this.deadMarkets = 0;
 
     }
 
     async additionalConstruction() {
         this.notableUsers = JSON.parse(await this.notableUsers);
 
-        this.currentMarkets = await getAllMarkets();
-        
-        while (!isBettable(this.currentMarkets[this.currentMarkets.length-1-this.deadMarkets])) {
-            this.deadMarkets++;
-        }
+        this.allUsers = getAllUsers();
 
+        this.lastScannedBet = (await latestBets(1))[0].id;
+
+        this.allUsers = await this.allUsers;
+
+
+
+        // for(let i = 0; i< 5; i++){
+        //     console.log(this.allUsers[i].id);
+        // }
+
+        // this.currentMarkets = await getAllMarkets();
+
+        // while (!isBettable(this.currentMarkets[this.currentMarkets.length - 1 - this.deadMarkets])) {
+        //     this.deadMarkets++;
+        // }
+
+    }
+
+    binarySearchUser(id) {
+        let start = 0;
+        let end = this.allUsers.length - 1;
+        let middle ;
+        
+        while (start <= end) {
+            middle = Math.floor((start + end) / 2);
+
+            if (this.allUsers[middle].id === id) {
+                // found the key
+                return this.allUsers[middle];
+            } else if (this.allUsers[middle].id < id) {
+                // continue searching to the right
+                //console.log("lefthalf")
+                start = middle + 1;
+            } else {
+                // search searching to the left
+                //console.log("righthalf")
+                end = middle - 1;
+            }
+        }
+        console.log(this.allUsers[end-1].id)
+        console.log(this.allUsers[end].id)
+        console.log(this.allUsers[end+1].id)
+        console.log("giveup")
+        // key wasn't found
+        return undefined;
+    }
+
+    
+    sortUserList(){
+        this.allUsers = this.allUsers.sort((a, b) => {
+            if (a.id < b.id) { return -1; }
+            if (a.id > b.id) { return 1; }
+            return 0;
+        });
     }
 
     isMarketLegit(mkt, bettor) {
@@ -243,338 +299,473 @@ export class Whaler {
         else { return noobPoints / 3; }
     }
 
-    async huntWhales() {
+
+    async detectChanges() {
+
+        if (this.ellipsesDisplay % 10 == 0) { consoleReport("..."); }
+        this.ellipsesDisplay++;
+
+        let changedMarkets = [];
+        let changedMarketsFull = [];
+
+        let newBets = [];
+
 
         try {
-            let incomingMarkets = await getAllMarkets();
-            this.lastMarkets = this.currentMarkets;
-            this.currentMarkets = incomingMarkets;
+            newBets = await latestBets(4);
+
+            // let incomingMarkets = await getAllMarkets();
+            // this.lastMarkets = this.currentMarkets;
+            // this.currentMarkets = incomingMarkets;
         }
         catch (e) {
             console.log(e);
             return;
         }
 
-        if (this.ellipsesDisplay % 10 == 0) { consoleReport("..."); }
-        this.ellipsesDisplay++;
-        let outcomeTypes = [];
+        let indexOfLastScan = undefined;
 
-        // First, check the state of new market creation, print them to the console for the operator's benefit
-        // otherwise they might throw off comparisons between market lists
-
-        let numNewMarkets = this.currentMarkets.length;
-        numNewMarkets -= this.lastMarkets.length;
-        let newMarketsToDisplay = numNewMarkets;
-        while (newMarketsToDisplay > 0) {
-            consoleReport("======");
-            consoleReport("New Market: " + this.currentMarkets[newMarketsToDisplay - 1].question + ": " + dToP(this.currentMarkets[newMarketsToDisplay - 1].probability));
-            newMarketsToDisplay--;
+        for (let i = 0; i < newBets.length - 1; i++) {
+            if (newBets[i].id === this.lastScannedBet) {
+                indexOfLastScan = i;
+            }
         }
 
-        for (let i = 0; i < this.lastMarkets.length-this.deadMarkets; i++) {
-            let currentMarketLite = this.currentMarkets[i + numNewMarkets];
-
-            if (currentMarketLite.outcomeType == "BINARY" || currentMarketLite.outcomeType == "PSEUDO_NUMERIC") {
-                //the main differnce I note betwen the two market types is renaming probability to just "p". Not implemented yet.
-
-                let difference = currentMarketLite.probability - this.lastMarkets[i].probability;
-
-                if (Math.abs(difference) > .01) {
-                    consoleReport("-----");
-                    consoleReport(currentMarketLite.question + ": " + dToP(this.lastMarkets[i].probability) + " -> " + dToP(currentMarketLite.probability));
-
-                    this.ellipsesDisplay = 0;
-
-                    let currentMarket = await getFullMarket(currentMarketLite.id);
-                    let betToScan = {};
-                    let betIndex = 0;
-                    try {
-                        betToScan = currentMarket.bets[betIndex];
-                    }
-                    catch (e) {
-                        console.log(e);
-                        console.log(currentMarket);
-                    }
-
-                    let marketBets = [];
-                    let aggregateBets = [];
-                    let betPlacers = [];
-
-                    //we'll need to record the present state of the market, 
-                    //and the LiteMarket fetched a few moments ago may already be obsolete
-                    let probFinal = betToScan.probAfter;
-
-                    //analyzing a bet history is difficult to do programmatically
-                    //to help, we're converting it into an intermediary: "aggregate bets" 
-                    //which helps our program not get confused by situations such as:
-                    // -strings of consecutive bets
-                    // -wash trading
-                    // -bets that other traders have already bet against
-                    //For each trader, an aggregate bet is a single imaginary bet made from the 
-                    //lowest to highest prices they bought at during the last period of activity.
-                    //limited to the range of the total price movement observed
-                    do {
-                        if ( //don't collect the following types of bets
-                            !isUnfilledLimitOrder(betToScan)
-                            && !betToScan.isRedemption
-                            && !(this.notableUsers[betToScan.userId] === "me")
-                        ) {
-                            marketBets.push(betToScan);
-                            // find/create the appropriate aggregate to add this to
-                            // we're deciding who to bet against in part based on user characteristics, so each user's
-                            // bets are aggregated separately
-                            let thisAggregate = aggregateBets.find((b) => { return b.userId == betToScan.userId; });
-                            if (thisAggregate === undefined) {
-                                thisAggregate = {
-                                    outcome: "",
-                                    contractId: betToScan.contractId,
-                                    userId: betToScan.userId,
-                                    bettor: "",
-                                    probBefore: betToScan.probBefore,
-                                    probAfter: betToScan.probAfter,
-                                    startTime: betToScan.createdTime,
-                                    endTime: betToScan.createdTime,
-                                    trustworthiness: undefined,
-                                    buyingPower: undefined,
-                                    bettorAssessment: 0,
-                                    noobScore: undefined,
-                                    constituentBets: []
-                                };
-
-                                thisAggregate.bettor = this.cachedUsers.find((u) => { betToScan.userId == u.id });
-                                if (thisAggregate.bettor === undefined) {
-                                    this.cachedUsers.push(await getUserById(betToScan.userId));
-                                    thisAggregate.bettor = this.cachedUsers.find((u) => { return betToScan.userId === u.id; });
-                                }
-
-                                aggregateBets.push(thisAggregate);
-                                betPlacers.push(getUserById(betToScan.userId));
-                            }
-                            else {
-                                thisAggregate.probBefore = betToScan.probBefore;
-                                thisAggregate.startTime = betToScan.createdTime;
-                            }
-                            thisAggregate.constituentBets.push(betToScan);
-                        }
-
-                        //Afterwards, move to the next bet and check it against our while condition
-                        if (currentMarket.bets.length <= (++betIndex)) { break; }
-                        else { betToScan = currentMarket.bets[betIndex]; }
-
-                        try { betToScan.createdTime }
-                        catch (e) {
-                            consoleReport("Looking for a bet where there isn't one, check the following outputs:");
-                            console.log(betIndex);
-                            console.log(betToScan);
-                        }
-
-                    } while (
-                        // we collect bets not since the last run of this function, but in fact since the last period of inactivity
-                        // (we don't want to miss an increase in price gradual enough that no one run of this function deems it noteworthy)
-                        // we also stop at our last bet on the assumption that we successfully corrected the price. (not perfect behaviour, but fine for now)
-                        // in the future we will also stop at the last bet by a high-skill trader.
-                        (marketBets.length === 0 || betToScan.createdTime > marketBets[marketBets.length - 1].createdTime - (1000 * 60 * 5))
-                        && (!(this.notableUsers[betToScan.userId] == "me"
-                            && !betToScan.isRedemption)));
-
-                    //now that we've collected a bet that does't qualify for analysis, 
-                    //we can take its probafter as the "baseline price" prior to the last flurry of betting
-                    let probStart = betToScan.probAfter;
-                    if (marketBets.length === 0) { probStart = betToScan.probBefore; }
-
-                    //post-process the aggbets.
-                    for (let i in aggregateBets) {
-
-                        if (aggregateBets[i].probBefore > aggregateBets[i].probAfter) { aggregateBets[i].outcome = "" + "NO"; }
-                        if (aggregateBets[i].probBefore < aggregateBets[i].probAfter) { aggregateBets[i].outcome = "" + "YES"; }
-
-                        //if it's a "NO" bet
-                        if (aggregateBets[i].outcome === 'NO') {
-
-                            //any big swings may be an illusion if they haven't brought the price any lower than it was at the start of the latest flurry of bets
-                            if (aggregateBets[i].probBefore > probStart) {
-                                aggregateBets[i].probBefore = probStart;
-                            }
-                            //or if the movement has since been reversed, probably by other bots, maybe from wash trading.
-                            if (aggregateBets[i].probAfter < probFinal) {
-                                aggregateBets[i].probAfter = probFinal;
-                            }
-                            //when this successfully catches misleading/illusory NO bets, it manifests as a very confusing 
-                            //output: a NO bet that increases the price, you'll want to add something that clarifies
-                            //so bot operators reading the logs understand what they're looking at
-                            //but the following doesn't work just yet cause even negated bets are useful for come later calculations
-                            //if (aggregateBets[i].probBefore <= aggregateBets[i].probAfter) { aggregateBets[i].outcome = "NEGATED"; }
-                        }
-                        //visa versa the above
-                        else if (aggregateBets[i].outcome === 'YES') {
-
-                            if (aggregateBets[i].probBefore < probStart) {
-                                aggregateBets[i].probBefore = probStart;
-                            }
-
-                            if (aggregateBets[i].probAfter > probFinal) {
-                                aggregateBets[i].probAfter = probFinal;
-                            }
-                            if (aggregateBets[i].probBefore >= aggregateBets[i].probAfter) { aggregateBets[i].outcome = "NEGATED"; }
-                        }
-                    }
-
-                    //analyze the aggbets
-                    for (let i in aggregateBets) {
-                        if (this.notableUsers[aggregateBets[i].userId] !== "v") {
-
-                            //let bettor = getUserById(aggregateBets[i].userId);
-                            aggregateBets[i].buyingPower = discountDoublings(aggregateBets[i]);
-
-                            let bettor = aggregateBets[i].bettor;
-
-                            aggregateBets[i].bettor = bettor.name;
-                            aggregateBets[i].trustworthiness = this.isMarketLegit(currentMarket, bettor); //returns value from zero to one;
-                            aggregateBets[i].noobScore = this.wasThisBetPlacedByANoob(bettor, aggregateBets[i].constituentBets) //returns value from zero to one;
-                            aggregateBets[i].bettorAssessment = this.assessTraderSkill(bettor, aggregateBets[i].constituentBets, currentMarket); //returns value from -1 to +1
-                            if (aggregateBets[i].noobScore == 1 && aggregateBets[i].bettorAssessment > 1) { aggregateBets[i].bettorAssessment /= 3.5; }
-
-                            aggregateBets[i].constituentBets = [];
-                            console.log(aggregateBets[i]);
-
-                            let betDifference = 0
-                            //if the bet hasn't been totally negated by other price movements
-                            if (!((aggregateBets[i].outcome === 'NO' && aggregateBets[i].probBefore <= aggregateBets[i].probAfter)
-                                || (aggregateBets[i].outcome === 'YES' && aggregateBets[i].probBefore >= aggregateBets[i].probAfter))) {
-
-                                betDifference = aggregateBets[i].probAfter - aggregateBets[i].probBefore;
-
-                                // proxies for user skill can't be less than those of anyone who made that trade at a worse price,
-                                // who has implicitly vouched for the trade. The "Beshir anchor"
-                                for (let j in aggregateBets) {
-                                    if ((aggregateBets[i].outcome === aggregateBets[j].outcome
-                                        && aggregateBets[i].outcome === "NO"
-                                        && aggregateBets[i].probAfter > aggregateBets[j].probAfter)
-                                        || (aggregateBets[i].outcome === aggregateBets[j].outcome
-                                            && aggregateBets[i].outcome === "YES"
-                                            && aggregateBets[i].probAfter < aggregateBets[j].probAfter)) {
-                                        if (aggregateBets[j].bettorAssessment > aggregateBets[i].bettorAssessment) {
-                                            aggregateBets[i].bettorAssessment = aggregateBets[j].bettorAssessment;
-                                        }
-                                        if (aggregateBets[j].noobScore < aggregateBets[i].noobScore) {
-                                            aggregateBets[i].noobScore = aggregateBets[j].noobScore;
-                                        }
-                                        if (aggregateBets[j].trustworthiness < aggregateBets[i].trustworthiness) {
-                                            aggregateBets[i].trustworthiness = aggregateBets[j].trustworthiness;
-                                        }
-                                    }
-                                }
-                            }
-
-                            consoleReport("prob difference: " + dToP(difference) + ", bet difference: " + dToP(betDifference));
-
-                            if (Math.abs(betDifference) >= MIN_P_MOVEMENT) {
-                                let betAlpha = this.settings.desiredAlpha;
-                                let shouldPlaceBet = 0;
-
-                                shouldPlaceBet = aggregateBets[i].noobScore;
-                                if (aggregateBets[i].bettorAssessment < -0.2) { shouldPlaceBet += 1 }
-                                else if (aggregateBets[i].bettorAssessment < 0) { shouldPlaceBet += .6 }
-                                else if (aggregateBets[i].bettorAssessment < 0.4) { shouldPlaceBet += .15 }
-                                shouldPlaceBet *= aggregateBets[i].trustworthiness;
-                                if (shouldPlaceBet > 0.4) { shouldPlaceBet *= aggregateBets[i].buyingPower; }
-
-                                betAlpha = (this.settings.desiredAlpha + (-1 * aggregateBets[i].bettorAssessment)) / 2
-                                betAlpha *= aggregateBets[i].trustworthiness;
-                                if (betAlpha < 0) { betAlpha = 0; }
-
-                                consoleReport("should I bet?\t| alpha sought\t| noobScore\t| bettorskill\t| trustworthy?\t| buyingPower");
-                                consoleReport(roundToPercent(shouldPlaceBet) + "\t\t| "
-                                    + roundToPercent(betAlpha) + "\t\t| "
-                                    + roundToPercent(aggregateBets[i].noobScore) + "\t\t| "
-                                    + roundToPercent(aggregateBets[i].bettorAssessment) + "\t\t| "
-                                    + roundToPercent(aggregateBets[i].trustworthiness) + "\t\t| "
-                                    + roundToPercent(aggregateBets[i].buyingPower));
-
-                                if (shouldPlaceBet >= 1 || this.settings.mode == "dry-run-w-mock-betting") {
-
-                                    let bet = {
-                                        contractId: `${currentMarket.id}`,
-                                        outcome: null,
-                                        amount: 100,
-                                        limitProb: null
-                                    }
-
-                                    //also prepare a limit order to liquidate it.
-                                    let sellBet = {
-                                        contractId: `${currentMarket.id}`,
-                                        outcome: null,
-                                        amount: 0,
-                                        limitProb: null
-                                    }
-
-                                    let recoveredSpan = Math.abs(betDifference) * (betAlpha);
-
-                                    if (betDifference < 0) {
-                                        bet.outcome = "YES";
-                                        bet.limitProb = currentMarket.probability + recoveredSpan;
-                                    }
-                                    else {
-                                        bet.outcome = "NO";
-                                        bet.limitProb = currentMarket.probability - recoveredSpan;
-                                    }
-                                    bet.limitProb = roundToPercent(bet.limitProb);
-
-                                    if (this.settings.mode == "dry-run" || this.settings.mode == "dry-run-w-mock-betting" || this.settings.mode == "bet") {
-                                        consoleReport("Betting against " + aggregateBets[i].bettor + " (" + aggregateBets[i].bettorAssessment + ") on " + currentMarket.question + " (" + currentMarket.probability + ")");
-                                        console.log(bet);
-                                        let myBet = null;
-
-                                        if (this.settings.mode == "bet") {
-                                            let myBetId = (await placeBet(bet).then((resjson) => { console.log(resjson); cancelBet(resjson.betId); return resjson; })).betId;
-                                            let updatedMkt = await getFullMarket(currentMarketLite.id);
-                                            myBet = updatedMkt.bets.find((bid) => { return bid.id == myBetId; });
-                                        }
-                                        else if (this.settings.mode == "dry-run" || this.settings.mode == "dry-run-w-mock-betting") {
-                                            myBet = bet;
-                                            myBet.probAfter = myBet.limitProb;
-                                            myBet.shares = myBet.amount / myBet.limitProb;
-                                        }
-
-                                        if (myBet.outcome == "NO") {
-                                            sellBet.outcome = "YES";
-                                            sellBet.limitProb = roundToPercent(aggregateBets[i].probBefore + ((myBet.limitProb - aggregateBets[i].probBefore) / 4));
-                                            sellBet.amount = roundToPercent(myBet.shares * sellBet.limitProb);
-
-                                        }
-                                        else if (myBet.outcome == "YES") {
-                                            sellBet.outcome = "NO";
-                                            sellBet.limitProb = roundToPercent(aggregateBets[i].probBefore - ((aggregateBets[i].probBefore - myBet.limitProb) / 4));
-                                            sellBet.amount = roundToPercent(myBet.shares * (1 - sellBet.limitProb));
-                                        }
-
-                                        if (this.settings.mode == "bet") {
-                                            await placeBet(sellBet).then((resjson) => { console.log(resjson); });
-                                        }
-                                        else if (this.settings.mode == "dry-run" || this.settings.mode == "dry-run-w-mock-betting") {
-                                            console.log(sellBet);
-                                        }
-
-                                    }
-                                }
-                            }
-                        }
-
+        if (indexOfLastScan === undefined) {
+            try {
+                newBets = await latestBets(40);
+                for (let i = 0; i < newBets.length - 1; i++) {
+                    if (newBets[i].id === this.lastScannedBet) {
+                        indexOfLastScan = i;
                     }
                 }
-
-            } else if (currentMarketLite.outcomeType == "FREE_RESPONSE") {
-
-            } else if (currentMarketLite.outcomeType == "MULTIPLE_CHOICE") {
-
-            } else if (currentMarketLite.outcomeType == "NUMERIC") {
-
-            } else {
-                if (outcomeTypes.length == 0 || outcomeTypes.find((a) => { return (a == currentMarketLite.outcomeType); }) == undefined) {
-                    outcomeTypes.push(currentMarketLite.outcomeType);
-                    console.log(currentMarketLite.outcomeType);
+                if (indexOfLastScan === undefined) {
+                    throw new Error("lastbet still not found");
                 }
             }
+            catch (e) {
+                console.log("NewBets collection RERUN fiailed");
+                console.log(e);
+                return;
+            }
+
+        }
+
+        // console.log("latestBet: "+newBets[0].id)//+"( "+(
+        // console.log(newBets[0].outcome === "YES"|| newBets[0].outcome === "NO");
+        // console.log(!isUnfilledLimitOrder(newBets[0]))
+        // console.log(!newBets[0].isRedemption);
+        // console.log(!(this.notableUsers[newBets[0].userId] === "v"))
+        for (let i = indexOfLastScan - 1; i >= 0; i--) {
+
+            if (newBets[i].outcome === "YES" || newBets[i].outcome === "NO") {
+                let parentMarket = this.recentMarkets.find((m) => { return (newBets[i].contractId === m.id); });
+                if (parentMarket === undefined) {
+                    do {
+                        try {
+                            parentMarket = await getFullMarket(newBets[i].contractId);
+                        }
+                        catch (e) {
+                            console.log(e);
+                            await sleep(5000);
+                        }
+                        //console.log("newly added recmarket: " + this.recentMarkets[0].id);
+                    } while (parentMarket === undefined)
+                    this.recentMarkets.unshift(parentMarket);
+                }
+                else {
+                    parentMarket.bets.unshift(newBets[i]);
+                    parentMarket.probability = newBets[i].probAfter;
+                }
+
+                if (!isUnfilledLimitOrder(newBets[i])
+                    && !newBets[i].isRedemption
+                    && !(this.notableUsers[newBets[i].userId] === "v")
+                ) {
+                    if (changedMarkets.find((e) => { e === newBets[i].contractId }) === undefined) {
+                        changedMarkets.push(newBets[i].contractId);
+                        changedMarketsFull.push(parentMarket);
+                    }
+                }
+            }
+
+        }
+
+        // // First, check the state of new market creation, print them to the console for the operator's benefit
+        // // otherwise they might throw off comparisons between market lists
+
+        // let numNewMarkets = this.currentMarkets.length;
+        // numNewMarkets -= this.lastMarkets.length;
+        // let newMarketsToDisplay = numNewMarkets;
+        // while (newMarketsToDisplay > 0) {
+        //     consoleReport("======");
+        //     consoleReport("New Market: " + this.currentMarkets[newMarketsToDisplay - 1].question + ": " + dToP(this.currentMarkets[newMarketsToDisplay - 1].probability));
+        //     newMarketsToDisplay--;
+        // }
+
+        // for (let i = 0; i < this.lastMarkets.length - this.deadMarkets; i++) {
+        //     let currentMarketLite = this.currentMarkets[i + numNewMarkets];
+
+        //     if (currentMarketLite.outcomeType == "BINARY" || currentMarketLite.outcomeType == "PSEUDO_NUMERIC") {
+        //         //the main differnce I note betwen the two market types is renaming probability to just "p". Not implemented yet.
+
+        //         let difference = currentMarketLite.probability - this.lastMarkets[i].probability;
+
+        //         if (Math.abs(difference) > .01) {
+        //             consoleReport("-----");
+        //             consoleReport(currentMarketLite.question + ": " + dToP(this.lastMarkets[i].probability) + " -> " + dToP(currentMarketLite.probability));
+
+        //             this.ellipsesDisplay = 0;
+
+        //             changedMarkets.push(getFullMarket(currentMarketLite.id));
+        //         }
+
+        //     } else if (currentMarketLite.outcomeType == "FREE_RESPONSE") {
+
+        //     } else if (currentMarketLite.outcomeType == "MULTIPLE_CHOICE") {
+
+        //     } else if (currentMarketLite.outcomeType == "NUMERIC") {
+
+        //     } else {
+        //             consoleReport("Manifold has released a new market type: "+currentMarketLite.outcomeType);
+        //     }
+        // }
+
+        //console.log("latest bet: " + newBets[0].id + ", last scanned: " + this.lastScannedBet);
+
+        this.lastScannedBet = newBets[0].id;
+
+        return changedMarketsFull;
+
+    }
+
+    async huntWhales() {
+
+        let marketsToInspect = await this.detectChanges();
+
+        for (let i in marketsToInspect) {
+
+            let betToScan = {};
+            let betIndex = 0;
+
+            let marketBets = [];
+            let aggregateBets = [];
+            let betPlacers = [];
+
+            let currentMarket = marketsToInspect[i];
+
+            this.ellipsesDisplay = 0;
+
+            try {
+                betToScan = currentMarket.bets[betIndex];
+            }
+            catch (e) {
+                console.log(e);
+                console.log(currentMarket);
+            }
+
+            let inactivityCutoff = this.clock.getDate() - (1000 * 60 * 5);
+
+            //we'll need to record the present state of the market, 
+            //and the LiteMarket fetched a few moments ago may already be obsolete
+            let probFinal = betToScan.probAfter;
+
+            //analyzing a bet history is difficult to do programmatically
+            //to help, we're converting it into an intermediary: "aggregate bets" 
+            //which helps our program not get confused by situations such as:
+            // -strings of consecutive bets
+            // -wash trading
+            // -bets that other traders have already bet against
+            //For each trader, an aggregate bet is a single imaginary bet made from the 
+            //lowest to highest prices they bought at during the last period of activity.
+            //limited to the range of the total price movement observed
+            while (
+                // we collect bets not since the last run of this function, but in fact since the last period of inactivity
+                // (we don't want to miss an increase in price gradual enough that no one run of this function deems it noteworthy)
+                // we also stop at our last bet on the assumption that we successfully corrected the price. (not perfect behaviour, but fine for now)
+                // in the future we will also stop at the last bet by a high-skill trader.
+                (betToScan.createdTime > inactivityCutoff)
+                && (!(this.notableUsers[betToScan.userId] == "me" && !betToScan.isRedemption))
+            ) {
+                if ( //don't collect the following types of bets
+                    !isUnfilledLimitOrder(betToScan)
+                    && !betToScan.isRedemption
+                    && !(this.notableUsers[betToScan.userId] === "me")
+                    && !(this.notableUsers[betToScan.userId] === "v")
+                ) {
+                    marketBets.push(betToScan);
+                    inactivityCutoff = betToScan.createdTime - (1000 * 60 * 5);
+                    // find/create the appropriate aggregate to add this to
+                    // we're deciding who to bet against in part based on user characteristics, so each user's
+                    // bets are aggregated separately
+                    let thisAggregate = aggregateBets.find((b) => { return b.userId === betToScan.userId; });
+                    if (thisAggregate === undefined) {
+                        thisAggregate = {
+                            outcome: "",
+                            contractId: betToScan.contractId,
+                            userId: betToScan.userId,
+                            bettor: "",
+                            probBefore: betToScan.probBefore,
+                            probAfter: betToScan.probAfter,
+                            startTime: betToScan.createdTime,
+                            endTime: betToScan.createdTime,
+                            trustworthiness: undefined,
+                            buyingPower: undefined,
+                            bettorAssessment: 0,
+                            noobScore: undefined,
+                            constituentBets: []
+                        };
+
+                        thisAggregate.bettor = this.binarySearchUser(betToScan.userId);
+                        if (thisAggregate.bettor === undefined) {
+                            this.allUsers.push(await getUserById(betToScan.userId));
+                            this.sortUserList();
+                            thisAggregate.bettor = this.binarySearchUser(betToScan.userId);
+                        } 
+                        
+
+                        aggregateBets.push(thisAggregate);
+                        betPlacers.push(getUserById(betToScan.userId));
+                    }
+                    else {
+                        thisAggregate.probBefore = betToScan.probBefore;
+                        thisAggregate.startTime = betToScan.createdTime;
+                    }
+                    thisAggregate.constituentBets.push(betToScan);
+                }
+
+                //Afterwards, move to the next bet and check it against our while condition
+                if (currentMarket.bets.length <= (++betIndex)) { break; }
+                else { betToScan = currentMarket.bets[betIndex]; }
+
+                try { betToScan.createdTime }
+                catch (e) {
+                    consoleReport("Looking for a bet where there isn't one, check the following outputs:");
+                    console.log(betIndex);
+                    console.log(betToScan);
+                }
+
+            }
+
+            //now that we've collected a bet that does't qualify for analysis, 
+            //we can take its probafter as the "baseline price" prior to the last flurry of betting
+            let probStart = betToScan.probAfter;
+
+            if (marketBets.length === 0) { probStart = betToScan.probBefore; }
+
+
+            consoleReport("-----");
+            consoleReport(currentMarket.question + ": " + dToP(probStart) + " -> " + dToP(currentMarket.probability));
+
+            //post-process the aggbets.
+            for (let i in aggregateBets) {
+
+                if (aggregateBets[i].probBefore > aggregateBets[i].probAfter) { aggregateBets[i].outcome = "" + "NO"; }
+                if (aggregateBets[i].probBefore < aggregateBets[i].probAfter) { aggregateBets[i].outcome = "" + "YES"; }
+
+                //if it's a "NO" bet
+                if (aggregateBets[i].outcome === 'NO') {
+
+                    //any big swings may be an illusion if they haven't brought the price any lower than it was at the start of the latest flurry of bets
+                    if (aggregateBets[i].probBefore > probStart) {
+                        aggregateBets[i].probBefore = probStart;
+                    }
+                    //or if the movement has since been reversed, probably by other bots, maybe from wash trading.
+                    if (aggregateBets[i].probAfter < probFinal) {
+                        aggregateBets[i].probAfter = probFinal;
+                    }
+                    //when this successfully catches misleading/illusory NO bets, it manifests as a very confusing 
+                    //output: a NO bet that increases the price, you'll want to add something that clarifies
+                    //so bot operators reading the logs understand what they're looking at
+                    //but the following doesn't work just yet cause even negated bets are useful for some later calculations
+                    //if (aggregateBets[i].probBefore <= aggregateBets[i].probAfter) { aggregateBets[i].outcome = "NEGATED"; }
+                }
+                //visa versa the above
+                else if (aggregateBets[i].outcome === 'YES') {
+
+                    if (aggregateBets[i].probBefore < probStart) {
+                        aggregateBets[i].probBefore = probStart;
+                    }
+
+                    if (aggregateBets[i].probAfter > probFinal) {
+                        aggregateBets[i].probAfter = probFinal;
+                    }
+                    //if (aggregateBets[i].probBefore >= aggregateBets[i].probAfter) { aggregateBets[i].outcome = "NEGATED"; }
+                }
+            }
+
+            //analyze the aggbets
+            for (let i in aggregateBets) {
+
+
+                //let bettor = getUserById(aggregateBets[i].userId);
+                aggregateBets[i].buyingPower = discountDoublings(aggregateBets[i]);
+
+                let bettor = aggregateBets[i].bettor;
+
+                aggregateBets[i].bettor = bettor.name;
+                aggregateBets[i].trustworthiness = this.isMarketLegit(currentMarket, bettor); //returns value from zero to one;
+                aggregateBets[i].noobScore = this.wasThisBetPlacedByANoob(bettor, aggregateBets[i].constituentBets) //returns value from zero to one;
+                aggregateBets[i].bettorAssessment = this.assessTraderSkill(bettor, aggregateBets[i].constituentBets, currentMarket); //returns value from -1 to +1
+                if (aggregateBets[i].noobScore == 1 && aggregateBets[i].bettorAssessment > 1) { aggregateBets[i].bettorAssessment /= 3.5; }
+
+                aggregateBets[i].constituentBets = [];
+                console.log(aggregateBets[i]);
+
+                let betDifference = 0
+                //if the bet hasn't been totally negated by other price movements
+                if (!((aggregateBets[i].outcome === 'NO' && aggregateBets[i].probBefore <= aggregateBets[i].probAfter)
+                    || (aggregateBets[i].outcome === 'YES' && aggregateBets[i].probBefore >= aggregateBets[i].probAfter))) {
+
+                    betDifference = aggregateBets[i].probAfter - aggregateBets[i].probBefore;
+
+                    // proxies for user skill can't be less than those of anyone who made that trade at a worse price,
+                    // who has implicitly vouched for the trade. The "Beshir anchor"
+                    for (let j in aggregateBets) {
+                        if ((aggregateBets[i].outcome === aggregateBets[j].outcome
+                            && aggregateBets[i].outcome === "NO"
+                            && aggregateBets[i].probAfter > aggregateBets[j].probAfter)
+                            || (aggregateBets[i].outcome === aggregateBets[j].outcome
+                                && aggregateBets[i].outcome === "YES"
+                                && aggregateBets[i].probAfter < aggregateBets[j].probAfter)) {
+                            if (aggregateBets[j].bettorAssessment > aggregateBets[i].bettorAssessment) {
+                                aggregateBets[i].bettorAssessment = aggregateBets[j].bettorAssessment;
+                            }
+                            if (aggregateBets[j].noobScore < aggregateBets[i].noobScore) {
+                                aggregateBets[i].noobScore = aggregateBets[j].noobScore;
+                            }
+                            if (aggregateBets[j].trustworthiness < aggregateBets[i].trustworthiness) {
+                                aggregateBets[i].trustworthiness = aggregateBets[j].trustworthiness;
+                            }
+                        }
+                    }
+                }
+
+                // consoleReport("prob difference: " + dToP(difference) + ", bet difference: " + dToP(betDifference));
+                consoleReport("bet difference: " + dToP(betDifference));
+
+
+                if (Math.abs(betDifference) >= MIN_P_MOVEMENT) {
+                    let betAlpha = this.settings.desiredAlpha;
+                    let shouldPlaceBet = 0;
+
+                    shouldPlaceBet = aggregateBets[i].noobScore;
+                    if (aggregateBets[i].bettorAssessment < -0.1) { shouldPlaceBet += 1 }
+                    else if (aggregateBets[i].bettorAssessment <= 0.2) { shouldPlaceBet += .67 }
+                    else if (aggregateBets[i].bettorAssessment <= 0.4) { shouldPlaceBet += .2 }
+                    shouldPlaceBet *= aggregateBets[i].trustworthiness;
+                    //this needs to be capped because otherwise it's possible to bait the bot with illusory Pascal's Wagers
+                    if(aggregateBets[i].buyingPower>2.5){aggregateBets[i].buyingPower=2.5}
+                    shouldPlaceBet *= aggregateBets[i].buyingPower;
+
+                    betAlpha = (this.settings.desiredAlpha + (-aggregateBets[i].bettorAssessment)) / 2
+                    betAlpha *= aggregateBets[i].trustworthiness*aggregateBets[i].trustworthiness;
+                    if (betAlpha < 0) { betAlpha = 0; }
+
+                    consoleReport("should I bet?\t| alpha sought\t| noobScore\t| bettorskill\t| trustworthy?\t| buyingPower");
+                    consoleReport(roundToPercent(shouldPlaceBet) + "\t\t| "
+                        + roundToPercent(betAlpha) + "\t\t| "
+                        + roundToPercent(aggregateBets[i].noobScore) + "\t\t| "
+                        + roundToPercent(aggregateBets[i].bettorAssessment) + "\t\t| "
+                        + roundToPercent(aggregateBets[i].trustworthiness) + "\t\t| "
+                        + roundToPercent(aggregateBets[i].buyingPower));
+
+                    if ((shouldPlaceBet >= 1 && betAlpha*Math.abs(betDifference)*aggregateBets[i].buyingPower > 0.01) || this.settings.mode == "dry-run-w-mock-betting") {
+
+                        let bet = {
+                            contractId: `${currentMarket.id}`,
+                            outcome: null,
+                            amount: 100,
+                            limitProb: null
+                        }
+
+                        let recoveredSpan = Math.abs(betDifference) * (betAlpha);
+
+                        if (betDifference < 0) {
+                            bet.outcome = "YES";
+                            bet.limitProb = currentMarket.probability + recoveredSpan;
+                        }
+                        else {
+                            bet.outcome = "NO";
+                            bet.limitProb = currentMarket.probability - recoveredSpan;
+                        }
+                        bet.limitProb = roundToPercent(bet.limitProb);
+
+                        if (this.settings.mode == "dry-run" || this.settings.mode == "dry-run-w-mock-betting" || this.settings.mode == "bet") {
+                            consoleReport("Betting against " + aggregateBets[i].bettor + " (" + aggregateBets[i].bettorAssessment + ") on " + currentMarket.question + " (" + currentMarket.probability + ")");
+                            console.log(bet);
+                            let myBetId = undefined;
+
+                            if (this.settings.mode == "bet") {
+                                bet.id = (await placeBet(bet).then((resjson) => { 
+                                    console.log(resjson); cancelBet(resjson.betId); return resjson; 
+                                })).betId;
+                                // if you put the liquidation order in a then, you can reduce some latency
+                            }
+                            else if (this.settings.mode == "dry-run" || this.settings.mode == "dry-run-w-mock-betting") {
+                                bet.probAfter = bet.limitProb;
+                                bet.shares = bet.amount / bet.limitProb;
+                            }
+
+                            //also prepare a limit order to liquidate it.
+                            if (this.settings.autoLiquidate) {
+                                this.placeLiquidationOrder(bet, probStart);
+                            }
+                        }
+
+                    }
+                }
+            }
+        }
+    }
+
+    async placeLiquidationOrder(bet, startingPoint) {
+
+        //await sleep(30000);
+        let myBet = bet;
+        console.log(myBet);
+        if (this.settings.mode === "bet") {
+            try {
+
+                //this isn't working cause the cached result doesn't have the new bet
+                let updatedMkt = await latestBets(10);;
+                // console.log("numbets:" + updatedMkt.length + ", mybetid: " + myBet.id);
+                // for (let j = 0; j < updatedMkt.length && j < 10; j++) {
+                //     console.log(updatedMkt[j].id);
+                // }
+                myBet = updatedMkt.find((b) => { return b.id === myBet.id; });
+            }
+            catch (e) {
+                console.log(e);
+                consoleReport("Getting updated bet info for liquidation bet failed. cancelling liquidation bet.");
+                return;
+            }
+        }
+
+        let sellBet = {
+            contractId: `${myBet.contractId}`,
+            outcome: null,
+            amount: 0,
+            limitProb: null
+        }
+
+        if (myBet.outcome === "NO") {
+            sellBet.outcome = "YES";
+            sellBet.limitProb = roundToPercent(startingPoint + ((myBet.limitProb - startingPoint) / 4));
+            sellBet.amount = roundToPercent(myBet.shares * sellBet.limitProb);
+
+        }
+        else if (myBet.outcome === "YES") {
+            sellBet.outcome = "NO";
+            sellBet.limitProb = roundToPercent(startingPoint - ((startingPoint - myBet.limitProb) / 4));
+            sellBet.amount = roundToPercent(myBet.shares * (1 - sellBet.limitProb));
+        }
+
+        if (this.settings.mode === "bet") {
+            await placeBet(sellBet).then((resjson) => { console.log(resjson); });
+        }
+        else if (this.settings.mode === "dry-run" || this.settings.mode === "dry-run-w-mock-betting") {
+            console.log(sellBet);
         }
 
     }
