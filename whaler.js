@@ -138,10 +138,7 @@ export class Whaler {
             returnVal -= .25;
         };
 
-        //its probably not a manipulated market if it has lots of unique traders.
-        if (mkt.bets.length > 400) { returnVal += 3; }
-        else {
-
+        //it's probably not a manipulated market if it has lots of unique traders.
             let uniqueTraders = [];
             let numUTs = 0;
             for (let i in mkt.bets) {
@@ -158,14 +155,16 @@ export class Whaler {
 
             if (numUTs > 20) { numUTs = 20; }
             returnVal += (numUTs * 0.05) - .35;
-        }
+        
 
         //The following users have the expertise or inclination to exploit a bot.
-        if (this.notableUsers[bettor.id] == "Yev") {
+        if (this.notableUsers[bettor.id] == "Yev"
+            || this.notableUsers[bettor.id] == "NotMyPresident") {
             returnVal -= .25;
         }
         if (this.notableUsers[mkt.creatorId] == "Yev"
             || this.notableUsers[mkt.creatorId] == "Spindle"
+            || this.notableUsers[mkt.creatorId] == "NotMyPresident"
             || this.notableUsers[mkt.creatorId] == "Gurkenglas") {
             returnVal -= .25;
         }
