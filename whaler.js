@@ -10,23 +10,17 @@ import {
 
 import 'dotenv/config'
 import {
-    readFile,
-    writeFile
+    readFile
 } from 'fs/promises';
 
 import {
-    isBettable,
     dToP,
     discountDoublings,
     roundToPercent,
     consoleReport,
     isUnfilledLimitOrder,
-    sleep,
-    sanitizeFilename
+    sleep
 } from './utility_functions.js';
-
-import { syncBuiltinESMExports } from 'module';
-import { time } from 'console';
 
 const HOUR = 60 * 60 * 1000;
 const MIN_P_MOVEMENT = .0375;
@@ -51,9 +45,6 @@ export class Whaler {
         this.clock = new Date();
         this.ellipsesDisplay = 0;
 
-        //it turns out everything pertaining to deadmarkets saves me only 4 equality comparisons per run, so it should be removed.
-        // this.deadMarkets = 0;
-
     }
 
     async additionalConstruction() {
@@ -65,25 +56,13 @@ export class Whaler {
 
         this.allUsers = await this.allUsers;
 
-
-
-        // for(let i = 0; i< 5; i++){
-        //     console.log(this.allUsers[i].id);
-        // }
-
-        // this.currentMarkets = await getAllMarkets();
-
-        // while (!isBettable(this.currentMarkets[this.currentMarkets.length - 1 - this.deadMarkets])) {
-        //     this.deadMarkets++;
-        // }
-
     }
 
     binarySearchUser(id) {
         let start = 0;
         let end = this.allUsers.length - 1;
-        let middle ;
-        
+        let middle;
+
         while (start <= end) {
             middle = Math.floor((start + end) / 2);
 
@@ -92,24 +71,24 @@ export class Whaler {
                 return this.allUsers[middle];
             } else if (this.allUsers[middle].id < id) {
                 // continue searching to the right
-                //console.log("lefthalf")
                 start = middle + 1;
             } else {
                 // search searching to the left
-                //console.log("righthalf")
                 end = middle - 1;
             }
         }
-        console.log(this.allUsers[end-1].id)
+
+        // key wasn't found. Print the environs it searched in to ensure the search is working properly.
+        
+        console.log("User wasn't found")
+        console.log(this.allUsers[end - 1].id)
         console.log(this.allUsers[end].id)
-        console.log(this.allUsers[end+1].id)
-        console.log("giveup")
-        // key wasn't found
+        console.log(this.allUsers[end + 1].id)
+
         return undefined;
     }
 
-    
-    sortUserList(){
+    sortUserList() {
         this.allUsers = this.allUsers.sort((a, b) => {
             if (a.id < b.id) { return -1; }
             if (a.id > b.id) { return 1; }
@@ -121,12 +100,15 @@ export class Whaler {
 
         let returnVal = 1;
 
-        //is 
+        //don't bet agains tthe market creator on their own market. Insider trading or market manipulation.
         if (mkt.creatorId == bettor.id) {
+            //exclude some trustworthy market creators
             if (!(
                 this.notableUsers[mkt.creatorId] == "BTE"
                 || this.notableUsers[mkt.creatorId] == "BTEF2P"
-            )) { returnVal -= .75; }
+            )) {
+                returnVal -= .75;
+            }
         }
 
         //If a new user has an extreme profits total they're no doubt a sockpuppet up to schenanigans and should be avoided.
@@ -139,23 +121,22 @@ export class Whaler {
         };
 
         //it's probably not a manipulated market if it has lots of unique traders.
-            let uniqueTraders = [];
-            let numUTs = 0;
-            for (let i in mkt.bets) {
-                if (uniqueTraders.find((o) => { return o === mkt.bets[i].userId; }) === undefined) {
-                    numUTs++;
-                    uniqueTraders.push(mkt.bets[i].userId);
-                }
+        let uniqueTraders = [];
+        let numUTs = 0;
+        for (let i in mkt.bets) {
+            if (uniqueTraders.find((o) => { return o === mkt.bets[i].userId; }) === undefined) {
+                numUTs++;
+                uniqueTraders.push(mkt.bets[i].userId);
             }
-            // }.map((item) => { item.userId }).reduce((names, name) => {
-            //     const count = names[name] || 0;
-            //     names[name] = count + 1;
-            //     return names;
-            // }, {});
+        }
+        // }.map((item) => { item.userId }).reduce((names, name) => {
+        //     const count = names[name] || 0;
+        //     names[name] = count + 1;
+        //     return names;
+        // }, {});
 
-            if (numUTs > 20) { numUTs = 20; }
-            returnVal += (numUTs * 0.05) - .35;
-        
+        if (numUTs > 20) { numUTs = 20; }
+        returnVal += (numUTs * 0.05) - .35;
 
         //The following users have the expertise or inclination to exploit a bot.
         if (this.notableUsers[bettor.id] == "Yev"
@@ -254,18 +235,6 @@ export class Whaler {
         let noobPoints = 0;
         let evalString = ""
 
-        //new users like to place bets in big round numbers, and sometimes bet their entire balance on a single question.
-        for (let i in bets) {
-            if (bets[i].amount == 1000 || bets[i].amount == 500) {
-                evalString += " 2 (Placed a bet of size 1000)";
-                noobPoints += 2;
-            }
-            else if (bets[i].amount % 100 == 0 || bets[i].amount % 250 == 0) {
-                evalString += " 1 (Placed bets in multiples of 100)";
-                if (noobPoints == 0) { noobPoints++; } //some hacky logic to make sure you don't triple count a string of 100M bets
-            }
-        }
-
         //how recent the account is:
         if (theUser.createdTime > this.clock.getTime() - HOUR * 24) {
             evalString += " 2 (Acct created in the last 24h)";
@@ -278,6 +247,18 @@ export class Whaler {
         else if (theUser.createdTime > this.clock.getTime() - HOUR * 24 * 7) {
             evalString += " 1 (Acct created in the last week)";
             noobPoints++;
+        }
+
+        //new users like to place bets in big round numbers, and sometimes bet their entire balance on a single question.
+        for (let i in bets) {
+            if (bets[i].amount == 1000 || bets[i].amount == 500) {
+                evalString += " 2 (Placed a bet of size 1000)";
+                if (noobPoints == 0) { noobPoints += 2; }
+            }
+            else if (bets[i].amount % 100 == 0 || bets[i].amount % 250 == 0) {
+                evalString += " 1 (Placed bets in multiples of 100)";
+                if (noobPoints == 0) { noobPoints += 1; } //some hacky logic to make sure you don't triple count a string of 100M bets
+            }
         }
 
         // some circumstantial Manifold familiarity indicators
@@ -298,7 +279,6 @@ export class Whaler {
         else { return noobPoints / 3; }
     }
 
-
     async detectChanges() {
 
         if (this.ellipsesDisplay % 10 == 0) { consoleReport("..."); }
@@ -308,7 +288,6 @@ export class Whaler {
         let changedMarketsFull = [];
 
         let newBets = [];
-
 
         try {
             newBets = await latestBets(4);
@@ -350,11 +329,6 @@ export class Whaler {
 
         }
 
-        // console.log("latestBet: "+newBets[0].id)//+"( "+(
-        // console.log(newBets[0].outcome === "YES"|| newBets[0].outcome === "NO");
-        // console.log(!isUnfilledLimitOrder(newBets[0]))
-        // console.log(!newBets[0].isRedemption);
-        // console.log(!(this.notableUsers[newBets[0].userId] === "v"))
         for (let i = indexOfLastScan - 1; i >= 0; i--) {
 
             if (newBets[i].outcome === "YES" || newBets[i].outcome === "NO") {
@@ -368,7 +342,6 @@ export class Whaler {
                             console.log(e);
                             await sleep(5000);
                         }
-                        //console.log("newly added recmarket: " + this.recentMarkets[0].id);
                     } while (parentMarket === undefined)
                     this.recentMarkets.unshift(parentMarket);
                 }
@@ -400,34 +373,6 @@ export class Whaler {
         //     consoleReport("======");
         //     consoleReport("New Market: " + this.currentMarkets[newMarketsToDisplay - 1].question + ": " + dToP(this.currentMarkets[newMarketsToDisplay - 1].probability));
         //     newMarketsToDisplay--;
-        // }
-
-        // for (let i = 0; i < this.lastMarkets.length - this.deadMarkets; i++) {
-        //     let currentMarketLite = this.currentMarkets[i + numNewMarkets];
-
-        //     if (currentMarketLite.outcomeType == "BINARY" || currentMarketLite.outcomeType == "PSEUDO_NUMERIC") {
-        //         //the main differnce I note betwen the two market types is renaming probability to just "p". Not implemented yet.
-
-        //         let difference = currentMarketLite.probability - this.lastMarkets[i].probability;
-
-        //         if (Math.abs(difference) > .01) {
-        //             consoleReport("-----");
-        //             consoleReport(currentMarketLite.question + ": " + dToP(this.lastMarkets[i].probability) + " -> " + dToP(currentMarketLite.probability));
-
-        //             this.ellipsesDisplay = 0;
-
-        //             changedMarkets.push(getFullMarket(currentMarketLite.id));
-        //         }
-
-        //     } else if (currentMarketLite.outcomeType == "FREE_RESPONSE") {
-
-        //     } else if (currentMarketLite.outcomeType == "MULTIPLE_CHOICE") {
-
-        //     } else if (currentMarketLite.outcomeType == "NUMERIC") {
-
-        //     } else {
-        //             consoleReport("Manifold has released a new market type: "+currentMarketLite.outcomeType);
-        //     }
         // }
 
         //console.log("latest bet: " + newBets[0].id + ", last scanned: " + this.lastScannedBet);
@@ -520,8 +465,7 @@ export class Whaler {
                             this.allUsers.push(await getUserById(betToScan.userId));
                             this.sortUserList();
                             thisAggregate.bettor = this.binarySearchUser(betToScan.userId);
-                        } 
-                        
+                        }
 
                         aggregateBets.push(thisAggregate);
                         betPlacers.push(getUserById(betToScan.userId));
@@ -551,7 +495,6 @@ export class Whaler {
             let probStart = betToScan.probAfter;
 
             if (marketBets.length === 0) { probStart = betToScan.probBefore; }
-
 
             consoleReport("-----");
             consoleReport(currentMarket.question + ": " + dToP(probStart) + " -> " + dToP(currentMarket.probability));
@@ -595,7 +538,6 @@ export class Whaler {
 
             //analyze the aggbets
             for (let i in aggregateBets) {
-
 
                 //let bettor = getUserById(aggregateBets[i].userId);
                 aggregateBets[i].buyingPower = discountDoublings(aggregateBets[i]);
@@ -643,7 +585,6 @@ export class Whaler {
                 // consoleReport("prob difference: " + dToP(difference) + ", bet difference: " + dToP(betDifference));
                 consoleReport("bet difference: " + dToP(betDifference));
 
-
                 if (Math.abs(betDifference) >= MIN_P_MOVEMENT) {
                     let betAlpha = this.settings.desiredAlpha;
                     let shouldPlaceBet = 0;
@@ -654,11 +595,11 @@ export class Whaler {
                     else if (aggregateBets[i].bettorAssessment <= 0.4) { shouldPlaceBet += .2 }
                     shouldPlaceBet *= aggregateBets[i].trustworthiness;
                     //this needs to be capped because otherwise it's possible to bait the bot with illusory Pascal's Wagers
-                    if(aggregateBets[i].buyingPower>2.5){aggregateBets[i].buyingPower=2.5}
+                    if (aggregateBets[i].buyingPower > 2.5) { aggregateBets[i].buyingPower = 2.5 }
                     shouldPlaceBet *= aggregateBets[i].buyingPower;
 
                     betAlpha = (this.settings.desiredAlpha + (-aggregateBets[i].bettorAssessment)) / 2
-                    betAlpha *= aggregateBets[i].trustworthiness*aggregateBets[i].trustworthiness;
+                    betAlpha *= aggregateBets[i].trustworthiness * aggregateBets[i].trustworthiness;
                     if (betAlpha < 0) { betAlpha = 0; }
 
                     consoleReport("should I bet?\t| alpha sought\t| noobScore\t| bettorskill\t| trustworthy?\t| buyingPower");
@@ -669,7 +610,7 @@ export class Whaler {
                         + roundToPercent(aggregateBets[i].trustworthiness) + "\t\t| "
                         + roundToPercent(aggregateBets[i].buyingPower));
 
-                    if ((shouldPlaceBet >= 1 && betAlpha*Math.abs(betDifference)*aggregateBets[i].buyingPower > 0.01) || this.settings.mode == "dry-run-w-mock-betting") {
+                    if ((shouldPlaceBet >= 1 && betAlpha * Math.abs(betDifference) * aggregateBets[i].buyingPower > 0.01) || this.settings.mode == "dry-run-w-mock-betting") {
 
                         let bet = {
                             contractId: `${currentMarket.id}`,
@@ -696,8 +637,8 @@ export class Whaler {
                             let myBetId = undefined;
 
                             if (this.settings.mode == "bet") {
-                                bet.id = (await placeBet(bet).then((resjson) => { 
-                                    console.log(resjson); cancelBet(resjson.betId); return resjson; 
+                                bet.id = (await placeBet(bet).then((resjson) => {
+                                    console.log(resjson); cancelBet(resjson.betId); return resjson;
                                 })).betId;
                                 // if you put the liquidation order in a then, you can reduce some latency
                             }
@@ -711,7 +652,6 @@ export class Whaler {
                                 this.placeLiquidationOrder(bet, probStart);
                             }
                         }
-
                     }
                 }
             }
@@ -720,18 +660,11 @@ export class Whaler {
 
     async placeLiquidationOrder(bet, startingPoint) {
 
-        //await sleep(30000);
         let myBet = bet;
         console.log(myBet);
         if (this.settings.mode === "bet") {
             try {
-
-                //this isn't working cause the cached result doesn't have the new bet
                 let updatedMkt = await latestBets(10);;
-                // console.log("numbets:" + updatedMkt.length + ", mybetid: " + myBet.id);
-                // for (let j = 0; j < updatedMkt.length && j < 10; j++) {
-                //     console.log(updatedMkt[j].id);
-                // }
                 myBet = updatedMkt.find((b) => { return b.id === myBet.id; });
             }
             catch (e) {
@@ -768,6 +701,5 @@ export class Whaler {
         }
 
     }
-
 
 }
