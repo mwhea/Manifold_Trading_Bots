@@ -1,6 +1,11 @@
 import dateFormat, { masks } from "dateformat";
 import {writeFile} from 'fs/promises';
 
+
+export const sleep = (ms) => {
+    return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 export function isBettable(mkt){
 
     if(mkt.isResolved == true){return false;}

@@ -5,10 +5,28 @@ const yourKey = process.env.APIKEY;
 const API_URL = process.env.APIURL; 
 
 
+export const latestBets = (num) => {
+  return fetch(`${API_URL}/bets?limit=${num}`).then(
+    (res) => res.json()
+  )
+}
+
 export const getUserById = async  (id) => {
   return fetch(`${API_URL}/user/by-id/${id}`).then(
     (res) => res.json()
   );
+}
+
+export const usersLastBet = (username) => {
+  return fetch(`${API_URL}/bets?username=${username}`).then(
+    (res) => res.json()
+  )
+}
+
+export const getAllUsers = () => {
+  return fetch(`${API_URL}/users`).then(
+    (res) => res.json()
+  )
 }
 
 export const getMe = () => {
