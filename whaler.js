@@ -401,8 +401,10 @@ export class Whaler {
             let betPlacers = [];
 
             let currentMarket = marketsToInspect[i];
-
-            this.ellipsesDisplay = 0;
+	     this.ellipsesDisplay = 0;
+            if (currentMarket.outcomeType==="PSEUDO_NUMERIC"){
+                currentMarket.probability = currentMarket.bets[0].probAfter;
+            }
 
             try {
                 betToScan = currentMarket.bets[betIndex];
