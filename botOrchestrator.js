@@ -15,6 +15,7 @@ import {
     readFile,
     writeFile
 } from 'fs/promises';
+import { Streaker } from "./streaker.js";
 
 const clock = new Date();
 const CYCLETIME = 1000;
@@ -44,9 +45,13 @@ let vsRuns = 0;
 let whaler = new Whaler(botSettings.whaler);
 await whaler.additionalConstruction();
 
+let streaker = new Streaker(botSettings.streaker);
+
+streaker.keepTheStreakAlive();
+
 while (true) {
 
-    //streaker();
+    
     //attritionTrade();
 
     if (botSettings.whaler.active) {

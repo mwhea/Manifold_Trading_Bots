@@ -4,8 +4,9 @@ import {
     getFullMarket,
     placeBet,
     cancelBet,
-    latestBets,
-    getAllUsers
+    getLatestBets,
+    getAllUsers,
+    getUsersBets
 } from './api.js';
 
 import {Logger} from "./Logger.js";
@@ -55,7 +56,7 @@ export class Whaler {
 
         this.allUsers = getAllUsers();
 
-        this.lastScannedBet = (await latestBets(1))[0].id;
+        this.lastScannedBet = (await getLatestBets(1))[0].id;
 
         this.allUsers = await this.allUsers;
 
@@ -315,7 +316,7 @@ export class Whaler {
 
         if (indexOfLastScan === undefined) {
             try {
-                newBets = await latestBets(40);
+                newBets = await getLatestBets(40);
                 for (let i = 0; i < newBets.length - 1; i++) {
                     if (newBets[i].id === this.lastScannedBet) {
                         indexOfLastScan = i;
@@ -643,9 +644,10 @@ export class Whaler {
                             let myBetId = undefined;
 
                             if (this.settings.mode === "bet") {
-                                bet.id = (await placeBet(bet.then((resjson) => { 
-				     console.log(resjson); cancelBet(resjson.betId); return resjson; 
-				 :})).betId;
+                                bet.id = (await placeBet(bet, process.env.APIKEY).then(
+                                    (resjson) => { console.log(resjson); cancelBet(resjson.betId, process.env.APIKEY); return resjson; }
+                                )
+                                ).betId;
                                 // if you put the liquidation order in a then, you can reduce some latency
                             }
                             else if (this.settings.mode === "dry-run" || this.settings.mode === "dry-run-w-mock-betting") {
@@ -701,7 +703,7 @@ export class Whaler {
         }
 
         if (this.settings.mode === "bet") {
-            await placeBet(sellBet).then((resjson) => { console.log(resjson); });
+            await placeBet(sellBet, process.env.APIKEY).then((resjson) => { console.log(resjson); });
         }
         else if (this.settings.mode === "dry-run" || this.settings.mode === "dry-run-w-mock-betting") {
             console.log(sellBet);

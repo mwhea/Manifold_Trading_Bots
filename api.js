@@ -1,11 +1,9 @@
 import 'dotenv/config'
 import fetch from 'node-fetch'
 
-const yourKey = process.env.APIKEY;
 const API_URL = process.env.APIURL; 
 
-
-export const latestBets = (num) => {
+export const getLatestBets = (num) => {
   return fetch(`${API_URL}/bets?limit=${num}`).then(
     (res) => res.json()
   )
@@ -17,8 +15,13 @@ export const getUserById = async  (id) => {
   );
 }
 
-export const usersLastBet = (username) => {
-  return fetch(`${API_URL}/bets?username=${username}`).then(
+export const getUsersBets = (username, bets) => {
+  let url = `${API_URL}/bets?username=${username}`;
+  if (bets!==undefined){
+    url+=`&limit=${bets}`;
+  }
+  console.log(url)
+  return fetch(url).then(
     (res) => res.json()
   )
 }
@@ -29,10 +32,10 @@ export const getAllUsers = () => {
   )
 }
 
-export const getMe = () => {
+export const getMe = (key) => {
   return fetch(`${API_URL}/me`, {
     headers: {
-      Authorization: `Key ${yourKey}`
+      Authorization: `Key ${key}`
   }
 }).then(
     (res) => res.json()
@@ -91,23 +94,23 @@ export const getFullMarket = async (id) => {
   }
 
 
-  export const placeBet = (bet) => {
+  export const placeBet = (bet, key) => {
     return fetch(`${API_URL}/bet`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Key ${yourKey}`,
+        Authorization: `Key ${key}`,
       },
       body: JSON.stringify(bet),
     }).then((res) => res.json())
   }
   
-  export const cancelBet = (betId) => {
+  export const cancelBet = (betId, key) => {
     return fetch(`${API_URL}/bet/cancel/${betId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Key ${yourKey}`,
+        Authorization: `Key ${key}`,
       },
     }).then((res) => res.json())
   }
