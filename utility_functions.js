@@ -45,14 +45,6 @@ export function getIdOfAnswer(mkt, answer){
     return mkt.answers.find((a) => {return (a.text == answer);}).number;
 }
 
-
-
-export function consoleReport(string){
-    let today = new Date();
-    
-    console.log("["+dateFormat(today, 'yyyy-mm-d h:MM:ss TT')+"] "+string);
-}
-
 export function restoreProbs(mkt, alpha){
 
 }

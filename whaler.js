@@ -8,6 +8,8 @@ import {
     getAllUsers
 } from './api.js';
 
+import {Logger} from "./Logger.js";
+
 import 'dotenv/config'
 import {
     readFile
@@ -17,7 +19,6 @@ import {
     dToP,
     discountDoublings,
     roundToPercent,
-    consoleReport,
     isUnfilledLimitOrder,
     sleep
 } from './utility_functions.js';
@@ -28,6 +29,8 @@ const MIN_P_MOVEMENT = .0375;
 export class Whaler {
 
     constructor(whalerSettings) {
+        this.log = new Logger("whaler");
+
         this.settings = whalerSettings;
 
         this.notableUsers = readFile(new URL('./notableUsers.json', import.meta.url));
@@ -62,6 +65,7 @@ export class Whaler {
         let start = 0;
         let end = this.allUsers.length - 1;
         let middle;
+        let searchLog = "User wasn't found";
 
         while (start <= end) {
             middle = Math.floor((start + end) / 2);
@@ -71,20 +75,19 @@ export class Whaler {
                 return this.allUsers[middle];
             } else if (this.allUsers[middle].id < id) {
                 // continue searching to the right
+                searchLog += "cachedId " + "<" + " id\n";
                 start = middle + 1;
             } else {
                 // search searching to the left
+                searchLog += "cachedId " + ">" + " id\n";
                 end = middle - 1;
             }
         }
 
         // key wasn't found. Print the environs it searched in to ensure the search is working properly.
-        
-        console.log("User wasn't found")
-        console.log(this.allUsers[end - 1].id)
-        console.log(this.allUsers[end].id)
-        console.log(this.allUsers[end + 1].id)
 
+        searchLog += ("Immediate Vicinity: " + this.allUsers[end - 1].id + ", " + this.allUsers[end].id + ", " + this.allUsers[end + 1].id);
+        this.log.write(searchLog);
         return undefined;
     }
 
@@ -150,7 +153,7 @@ export class Whaler {
             returnVal -= .25;
         }
 
-        consoleReport("Assessed safety from market manipulation or insider trading: " + returnVal);
+        this.log.write("Assessed safety from market manipulation or insider trading: " + returnVal);
 
         if (returnVal < 0) { return 0; }
         else if (returnVal > 1) { return 1; }
@@ -223,7 +226,7 @@ export class Whaler {
         }
 
         evalString += ", daily profits (calibrated): " + profitsCalibrated;
-        consoleReport(evalString);
+        this.log.write(evalString);
 
         return profitsCalibrated;
 
@@ -272,7 +275,7 @@ export class Whaler {
         }
 
         //return final evaluation
-        consoleReport("Evaluated " + theUser.name + ": " + noobPoints + " = " + evalString);
+        this.log.write("Evaluated " + theUser.name + ": " + noobPoints + " = " + evalString);
 
         if (noobPoints > 3) { return 1; }
 
@@ -280,9 +283,12 @@ export class Whaler {
     }
 
     async detectChanges() {
-
-        if (this.ellipsesDisplay % 10 == 0) { consoleReport("..."); }
+        
+        if (this.ellipsesDisplay % 10 == 0){
+            this.log.write("...");
+        }
         this.ellipsesDisplay++;
+        
 
         let changedMarkets = [];
         let changedMarketsFull = [];
@@ -370,8 +376,8 @@ export class Whaler {
         // numNewMarkets -= this.lastMarkets.length;
         // let newMarketsToDisplay = numNewMarkets;
         // while (newMarketsToDisplay > 0) {
-        //     consoleReport("======");
-        //     consoleReport("New Market: " + this.currentMarkets[newMarketsToDisplay - 1].question + ": " + dToP(this.currentMarkets[newMarketsToDisplay - 1].probability));
+        //     this.log.write("======");
+        //     this.log.write("New Market: " + this.currentMarkets[newMarketsToDisplay - 1].question + ": " + dToP(this.currentMarkets[newMarketsToDisplay - 1].probability));
         //     newMarketsToDisplay--;
         // }
 
@@ -483,7 +489,7 @@ export class Whaler {
 
                 try { betToScan.createdTime }
                 catch (e) {
-                    consoleReport("Looking for a bet where there isn't one, check the following outputs:");
+                    this.log.write("Looking for a bet where there isn't one, check the following outputs:");
                     console.log(betIndex);
                     console.log(betToScan);
                 }
@@ -496,8 +502,8 @@ export class Whaler {
 
             if (marketBets.length === 0) { probStart = betToScan.probBefore; }
 
-            consoleReport("-----");
-            consoleReport(currentMarket.question + ": " + dToP(probStart) + " -> " + dToP(currentMarket.probability));
+            this.log.write("-----");
+            this.log.write(currentMarket.question + ": " + dToP(probStart) + " -> " + dToP(currentMarket.probability));
 
             //post-process the aggbets.
             for (let i in aggregateBets) {
@@ -582,8 +588,8 @@ export class Whaler {
                     }
                 }
 
-                // consoleReport("prob difference: " + dToP(difference) + ", bet difference: " + dToP(betDifference));
-                consoleReport("bet difference: " + dToP(betDifference));
+                // this.log.write("prob difference: " + dToP(difference) + ", bet difference: " + dToP(betDifference));
+                this.log.write("bet difference: " + dToP(betDifference));
 
                 if (Math.abs(betDifference) >= MIN_P_MOVEMENT) {
                     let betAlpha = this.settings.desiredAlpha;
@@ -602,8 +608,8 @@ export class Whaler {
                     betAlpha *= aggregateBets[i].trustworthiness * aggregateBets[i].trustworthiness;
                     if (betAlpha < 0) { betAlpha = 0; }
 
-                    consoleReport("should I bet?\t| alpha sought\t| noobScore\t| bettorskill\t| trustworthy?\t| buyingPower");
-                    consoleReport(roundToPercent(shouldPlaceBet) + "\t\t| "
+                    this.log.write("should I bet?\t| alpha sought\t| noobScore\t| bettorskill\t| trustworthy?\t| buyingPower");
+                    this.log.write(roundToPercent(shouldPlaceBet) + "\t\t| "
                         + roundToPercent(betAlpha) + "\t\t| "
                         + roundToPercent(aggregateBets[i].noobScore) + "\t\t| "
                         + roundToPercent(aggregateBets[i].bettorAssessment) + "\t\t| "
@@ -631,8 +637,8 @@ export class Whaler {
                         }
                         bet.limitProb = roundToPercent(bet.limitProb);
 
-                        if (this.settings.mode == "dry-run" || this.settings.mode == "dry-run-w-mock-betting" || this.settings.mode == "bet") {
-                            consoleReport("Betting against " + aggregateBets[i].bettor + " (" + aggregateBets[i].bettorAssessment + ") on " + currentMarket.question + " (" + currentMarket.probability + ")");
+                        if (this.settings.mode === "dry-run" || this.settings.mode === "dry-run-w-mock-betting" || this.settings.mode === "bet") {
+                            this.log.write("Betting against " + aggregateBets[i].bettor + " (" + aggregateBets[i].bettorAssessment + ") on " + currentMarket.question + " (" + currentMarket.probability + ")");
                             console.log(bet);
                             let myBetId = undefined;
 
@@ -669,7 +675,7 @@ export class Whaler {
             }
             catch (e) {
                 console.log(e);
-                consoleReport("Getting updated bet info for liquidation bet failed. cancelling liquidation bet.");
+                this.log.write("Getting updated bet info for liquidation bet failed. cancelling liquidation bet.");
                 return;
             }
         }
