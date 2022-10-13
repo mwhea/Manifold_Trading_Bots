@@ -104,11 +104,11 @@ export class Whaler {
         let returnVal = 1;
 
         //don't bet agains tthe market creator on their own market. Insider trading or market manipulation.
-        if (mkt.creatorId == bettor.id) {
+        if (mkt.creatorId === bettor.id) {
             //exclude some trustworthy market creators
             if (!(
-                this.notableUsers[mkt.creatorId] == "BTE"
-                || this.notableUsers[mkt.creatorId] == "BTEF2P"
+                this.notableUsers[mkt.creatorId] === "BTE"
+                || this.notableUsers[mkt.creatorId] === "BTEF2P"
             )) {
                 returnVal -= .75;
             }
@@ -142,14 +142,14 @@ export class Whaler {
         returnVal += (numUTs * 0.05) - .35;
 
         //The following users have the expertise or inclination to exploit a bot.
-        if (this.notableUsers[bettor.id] == "Yev"
-            || this.notableUsers[bettor.id] == "NotMyPresident") {
+        if (this.notableUsers[bettor.id] === "Yev"
+            || this.notableUsers[bettor.id] === "NotMyPresident") {
             returnVal -= .25;
         }
-        if (this.notableUsers[mkt.creatorId] == "Yev"
-            || this.notableUsers[mkt.creatorId] == "Spindle"
-            || this.notableUsers[mkt.creatorId] == "NotMyPresident"
-            || this.notableUsers[mkt.creatorId] == "Gurkenglas") {
+        if (this.notableUsers[mkt.creatorId] === "Yev"
+            || this.notableUsers[mkt.creatorId] === "Spindle"
+            || this.notableUsers[mkt.creatorId] === "NotMyPresident"
+            || this.notableUsers[mkt.creatorId] === "Gurkenglas") {
             returnVal -= .25;
         }
 
@@ -167,11 +167,11 @@ export class Whaler {
 
         //special logic for specific users whose trading patterns I know:
         //BTE has lots of funds and impulsively places large bets which the larger market doesn't agree with, so he's perfect for market making.
-        if (this.notableUsers[bettor.id] == "BTE") {
+        if (this.notableUsers[bettor.id] === "BTE") {
             return -0.2;
         }
 
-        if (bettor.id == mkt.creatorId) {
+        if (bettor.id === mkt.creatorId) {
             let bettorAssessment = "insider";
         }
 
@@ -243,7 +243,7 @@ export class Whaler {
             evalString += " 2 (Acct created in the last 24h)";
             noobPoints += 2;
         }
-        else if (theUser.profitCached.allTime - theUser.profitCached.daily == 0) {
+        else if (theUser.profitCached.allTime - theUser.profitCached.daily === 0) {
             evalString += " 2 (has made no trades prior to today)";
             noobPoints += 2;
         }
@@ -254,13 +254,13 @@ export class Whaler {
 
         //new users like to place bets in big round numbers, and sometimes bet their entire balance on a single question.
         for (let i in bets) {
-            if (bets[i].amount == 1000 || bets[i].amount == 500) {
+            if (bets[i].amount === 1000 || bets[i].amount === 500) {
                 evalString += " 2 (Placed a bet of size 1000)";
-                if (noobPoints == 0) { noobPoints += 2; }
+                if (noobPoints === 0) { noobPoints += 2; }
             }
             else if (bets[i].amount % 100 == 0 || bets[i].amount % 250 == 0) {
                 evalString += " 1 (Placed bets in multiples of 100)";
-                if (noobPoints == 0) { noobPoints += 1; } //some hacky logic to make sure you don't triple count a string of 100M bets
+                if (noobPoints === 0) { noobPoints += 1; } //some hacky logic to make sure you don't triple count a string of 100M bets
             }
         }
 
@@ -296,11 +296,7 @@ export class Whaler {
         let newBets = [];
 
         try {
-            newBets = await latestBets(4);
-
-            // let incomingMarkets = await getAllMarkets();
-            // this.lastMarkets = this.currentMarkets;
-            // this.currentMarkets = incomingMarkets;
+            newBets = await getLatestBets(4);
         }
         catch (e) {
             console.log(e);
@@ -328,7 +324,7 @@ export class Whaler {
                 }
             }
             catch (e) {
-                console.log("NewBets collection RERUN fiailed");
+                console.log("NewBets collection RERUN failed");
                 console.log(e);
                 return;
             }
@@ -435,7 +431,7 @@ export class Whaler {
                 // we also stop at our last bet on the assumption that we successfully corrected the price. (not perfect behaviour, but fine for now)
                 // in the future we will also stop at the last bet by a high-skill trader.
                 (betToScan.createdTime > inactivityCutoff)
-                && (!(this.notableUsers[betToScan.userId] == "me" && !betToScan.isRedemption))
+                && (!(this.notableUsers[betToScan.userId] === "me" && !betToScan.isRedemption))
             ) {
                 if ( //don't collect the following types of bets
                     !isUnfilledLimitOrder(betToScan)
@@ -554,7 +550,7 @@ export class Whaler {
                 aggregateBets[i].trustworthiness = this.isMarketLegit(currentMarket, bettor); //returns value from zero to one;
                 aggregateBets[i].noobScore = this.wasThisBetPlacedByANoob(bettor, aggregateBets[i].constituentBets) //returns value from zero to one;
                 aggregateBets[i].bettorAssessment = this.assessTraderSkill(bettor, aggregateBets[i].constituentBets, currentMarket); //returns value from -1 to +1
-                if (aggregateBets[i].noobScore == 1 && aggregateBets[i].bettorAssessment > 1) { aggregateBets[i].bettorAssessment /= 3.5; }
+                if (aggregateBets[i].noobScore === 1 && aggregateBets[i].bettorAssessment > 1) { aggregateBets[i].bettorAssessment /= 3.5; }
 
                 aggregateBets[i].constituentBets = [];
                 console.log(aggregateBets[i]);
@@ -616,7 +612,7 @@ export class Whaler {
                         + roundToPercent(aggregateBets[i].trustworthiness) + "\t\t| "
                         + roundToPercent(aggregateBets[i].buyingPower));
 
-                    if ((shouldPlaceBet >= 1 && betAlpha * Math.abs(betDifference) * aggregateBets[i].buyingPower > 0.01) || this.settings.mode == "dry-run-w-mock-betting") {
+                    if ((shouldPlaceBet >= 1 && betAlpha * Math.abs(betDifference) * aggregateBets[i].buyingPower > 0.01) || this.settings.mode === "dry-run-w-mock-betting") {
 
                         let bet = {
                             contractId: `${currentMarket.id}`,
@@ -642,13 +638,13 @@ export class Whaler {
                             console.log(bet);
                             let myBetId = undefined;
 
-                            if (this.settings.mode == "bet") {
-                                bet.id = (await placeBet(bet).then((resjson) => {
-                                    console.log(resjson); cancelBet(resjson.betId); return resjson;
-                                })).betId;
+                            if (this.settings.mode === "bet") {
+                                bet.id = (await placeBet(bet.then((resjson) => { 
+				     console.log(resjson); cancelBet(resjson.betId); return resjson; 
+				 :})).betId;
                                 // if you put the liquidation order in a then, you can reduce some latency
                             }
-                            else if (this.settings.mode == "dry-run" || this.settings.mode == "dry-run-w-mock-betting") {
+                            else if (this.settings.mode === "dry-run" || this.settings.mode === "dry-run-w-mock-betting") {
                                 bet.probAfter = bet.limitProb;
                                 bet.shares = bet.amount / bet.limitProb;
                             }
@@ -662,6 +658,7 @@ export class Whaler {
                 }
             }
         }
+
     }
 
     async placeLiquidationOrder(bet, startingPoint) {
