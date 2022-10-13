@@ -143,7 +143,8 @@ export class Whaler {
 
         //The following users have the expertise or inclination to exploit a bot.
         if (this.notableUsers[bettor.id] === "Yev"
-            || this.notableUsers[bettor.id] === "NotMyPresident") {
+            || this.notableUsers[bettor.id] === "NotMyPresident"
+            || this.notableUsers[bettor.id] === "GeorgeVii") {
             returnVal -= .25;
         }
         if (this.notableUsers[mkt.creatorId] === "Yev"
@@ -177,10 +178,11 @@ export class Whaler {
 
         let dailyProfits = (bettor.profitCached.allTime) / ((this.clock.getTime() - bettor.createdTime) / (HOUR * 24));
 
-        if (this.clock.getTime() - bettor.createdTime > HOUR * 24 * 30) {
+        if (this.clock.getTime() - bettor.createdTime > HOUR * 24 * 30 && dailyProfits<(bettor.profitCached.monthly / 30)) {
 
             evalString += ", daily profits (all): " + roundToPercent(dailyProfits)
                 + ", daily profits (monthly): " + roundToPercent((bettor.profitCached.monthly / 30));
+
 
             dailyProfits = (dailyProfits + (bettor.profitCached.monthly / 30)) / 2;
 
