@@ -6,14 +6,24 @@ import {
     cancelBet,
     getLatestBets,
     getAllUsers,
+    getMarkets,
     getUsersBets
 } from './api.js';
+import {
+    createWriteStream,
+    createReadStream,
+    rename,
+    renameSync
+} from 'fs';
+import dateFormat, { masks } from "dateformat";
 
-import {Logger} from "./Logger.js";
+import fetch from 'node-fetch'
+import { Logger } from "./Logger.js";
 
 import 'dotenv/config'
 import {
-    readFile
+    readFile,
+    writeFile
 } from 'fs/promises';
 
 import {
@@ -29,16 +39,20 @@ const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * MINUTE;
 const MIN_P_MOVEMENT = .0375;
-const OUTGOING_LIMIT = 500;
 
-const QUICKDRAW_AMOUNT = 20;
+const UT_THRESHOLD = 20
 
+const OUTGOING_LIMIT = 1000;
 //speeds: (run every n milliseconds)
 const HYPERDRIVE = 1;
 const FAST = 50;
 const NORMAL = 250;
 const LEISURELY = 1000;
 
+/**
+ * The Whaler bot detects large, misjudged trades by "noobs" or "trolls," 
+ * and attempts to take the other side of those trades with as little delay as possible.
+ */
 export class Whaler {
 
     constructor(whalerSettings) {
@@ -53,7 +67,7 @@ export class Whaler {
 
         this.cachedUsers = [];
         this.allUsers = [];
-        this.allMarkets = [];
+
         this.recentMarkets = [];
 
         this.lastScannedBet = undefined;
@@ -70,30 +84,57 @@ export class Whaler {
 
         this.limitOrderQueue = [];
 
+        this.allCachedMarkets = [];
+
     }
 
-    getSpeed(){
+    getSpeed() {
         return this.settings.speed;
     }
 
+    /**
+     * To my knowledge there's no straighforward way to use asynchronous methods in a constructor, 
+     * so this method is meant to be called after the constuctor to perform any additional construction making used of asynchronous functions
+     */
     async additionalConstruction() {
         this.notableUsers = JSON.parse(await this.notableUsers);
+        try {
+            this.allCachedMarkets = await readFile(new URL('/temp/markets.json', import.meta.url));
+            this.allCachedMarkets = JSON.parse(await this.allCachedMarkets);
+        }
+        catch (e) {
+            console.log(e)
+            console.log("Unable to load market cache, building one anew")
+            this.allCachedMarkets = [];
+            await this.buildCacheFromScratch();
+        }
+        //this.backupCache();
 
         this.allUsers = getAllUsers();
-        this.allMarkets = getAllMarkets();
 
         this.lastScannedBet = (await getLatestBets(1))[0].id;
 
         this.allUsers = this.sortListById(await this.allUsers);
-        this.allMarkets = this.sortListById(await this.allMarkets);
+        
+        
+        if (this.allCachedMarkets.length === 0) {
+            await this.buildCacheFromScratch();
+            // throw new Error("market cache missing. Filling it anew");
+        }
 
     }
 
+    /**
+     * Binary search which can be used on either the locally stored list of markets or the list of users
+     * @param {*} id 
+     * @param {*} list 
+     * @returns the sought-after object
+     */
     findIdHolderInList(id, list) {
         let start = 0;
         let end = list.length - 1;
         let middle;
-        let searchLog = "ID holder ("+id+") wasn't found:\n";
+        let searchLog = "ID holder wasn't found";
 
         while (start <= end) {
             middle = Math.floor((start + end) / 2);
@@ -119,6 +160,11 @@ export class Whaler {
         return undefined;
     }
 
+    /**
+     * Sort a list by id, works on any array whose objects contain an "id" field.
+     * @param {*} list 
+     * @returns the sorted array
+     */
     sortListById(list) {
         list = list.sort((a, b) => {
             if (a.id < b.id) { return -1; }
@@ -128,12 +174,20 @@ export class Whaler {
         return list;
     }
 
+    /**
+     * This method evaluates the likelihood that a given market is not entirely on the level. 
+     * It's meant to warn against insider traders or a deliberate trap being laid for bots.
+     * @param {*} mkt 
+     * @param {*} bettor 
+     * @returns a value from negative infinity to one: with one being near-assured safety, and negative numbers indicating active danger.
+     */
     isMarketLegit(mkt, bettor) {
 
         let returnVal = 1;
         let time = new Date();
+        let searchLog = "Assessed safety from market manipulation or insider trading: 1";
 
-        //don't bet agains the market creator on their own market. Insider trading or market manipulation.
+        //don't bet against the market creator on their own market. Insider trading or market manipulation.
         if (mkt.creatorId === bettor.id) {
             //exclude some trustworthy market creators
             if (!(
@@ -141,60 +195,57 @@ export class Whaler {
                 || this.notableUsers[mkt.creatorId] === "BTEF2P"
                 || this.notableUsers[mkt.creatorId] === "Bot Dad"
             )) {
+                searchLog += " - 0.75 (insider trading)"
                 returnVal -= .75;
             }
         }
 
         //If a new user has an extreme profits total they're no doubt a sockpuppet up to schenanigans and should be avoided.
         if (Math.abs(bettor.profitCached.allTime) > 1500 && bettor.createdTime + ((HOUR * 24 * 3)) > time.getTime()) {
+            searchLog += " - 300"
             returnVal -= 300;
         }
-        
         //it's probably not a manipulated market if it has lots of unique traders.
-        let uniqueTraders = [];
         let numUTs = 0;
-
-        //if you aren't running this with a litemarket
-        if (mkt.bets != undefined) { 
-            for (let i in mkt.bets) {
-                if (uniqueTraders.find((o) => { return o === mkt.bets[i].userId; }) === undefined) {
-                    numUTs++;
-                    uniqueTraders.push(mkt.bets[i].userId);
-                }
-            }
-        }
-        else  if (mkt.createdTime > time.getTime() - ((MINUTE * 15))) {
-            returnVal -= .40;
-        }
-        //otherwise length open is the only heuristic you have to go on.
-        else if (mkt.createdTime > time.getTime() - ((DAY * 5))) {
-            returnVal -= .25;
+        if (mkt.uniqueTraders.length < UT_THRESHOLD && mkt.uniqueTraders.find((o) => { return o === bettor.id; }) === undefined) {
+            mkt.uniqueTraders.push(bettor.id);
         }
 
-        // }.map((item) => { item.userId }).reduce((names, name) => {
-        //     const count = names[name] || 0;
-        //     names[name] = count + 1;
-        //     return names;
-        // }, {});
+        let socialProofAdjustment = (mkt.uniqueTraders.length * 0.05) - .35;
+        if (mkt.uniqueTraders.length > UT_THRESHOLD) { socialProofAdjustment = (UT_THRESHOLD * 0.05) - .35; }
+        if (socialProofAdjustment >= 0) { searchLog += " + " + socialProofAdjustment; }
+        else { searchLog += " - " + Math.abs(socialProofAdjustment); }
+        searchLog += " (num unique traders)";
+        returnVal += socialProofAdjustment;
 
-        if (numUTs > 20) { numUTs = 20; }
-        returnVal += (numUTs * 0.05) - .35;
+
+        // if (mkt.createdTime > time.getTime() - ((MINUTE * 15))) {
+        //     searchLog += " - 0.40";
+        //     returnVal -= .40;
+        // }
+        // //otherwise length open is the only heuristic you have to go on.
+        // else if (mkt.createdTime > time.getTime() - ((DAY * 5))) {
+        //     searchLog +=" - 0.25";
+        //     returnVal -= .25;
+        // }
 
         //The following users have the expertise or inclination to exploit a bot.
         if (this.notableUsers[bettor.id] === "Yev"
             || this.notableUsers[bettor.id] === "NotMyPresident"
             || this.notableUsers[bettor.id] === "GeorgeVii") {
+            searchLog += " - 0.25 (dangerous users)";
             returnVal -= .25;
         }
         if (this.notableUsers[mkt.creatorId] === "Yev"
             || this.notableUsers[mkt.creatorId] === "Spindle"
             || this.notableUsers[mkt.creatorId] === "NotMyPresident"
             || this.notableUsers[mkt.creatorId] === "Gurkenglas"
-            || this.notableUsers[bettor.id] === "GeorgeVii") {
+            || this.notableUsers[mkt.creatorId] === "GeorgeVii") {
+            searchLog += " - 0.25 (dangerous users)";
             returnVal -= .25;
         }
 
-        this.log.write("Assessed safety from market manipulation or insider trading: " + returnVal);
+        this.log.write(searchLog + " = " + returnVal);
 
         if (returnVal < 0) { return 0; }
         else if (returnVal > 1) { return 1; }
@@ -202,6 +253,13 @@ export class Whaler {
 
     }
 
+    /**
+     * Assess how skilled a trader is.
+     * @param {*} bettor the user to be evaluated
+     * @param {*} bets an array of all the related bets which we're considering reacting to.
+     * @param {*} mkt 
+     * @returns 
+     */
     assessTraderSkill(bettor, bets, mkt) {
 
         let evalString = "Evaluated skill of " + bettor.name;
@@ -218,11 +276,10 @@ export class Whaler {
 
         let dailyProfits = (bettor.profitCached.allTime) / ((this.clock.getTime() - bettor.createdTime) / (HOUR * 24));
 
-        if (this.clock.getTime() - bettor.createdTime > HOUR * 24 * 30 && dailyProfits<(bettor.profitCached.monthly / 30)) {
+        if (this.clock.getTime() - bettor.createdTime > HOUR * 24 * 30 && dailyProfits < (bettor.profitCached.monthly / 30)) {
 
             evalString += ", daily profits (all): " + roundToPercent(dailyProfits)
                 + ", daily profits (monthly): " + roundToPercent((bettor.profitCached.monthly / 30));
-
 
             dailyProfits = (dailyProfits + (bettor.profitCached.monthly / 30)) / 2;
 
@@ -274,6 +331,12 @@ export class Whaler {
 
     }
 
+    /**
+     * This method evaluates a user to determine if they are likely to be a new user.
+     * @param {*} user 
+     * @param {*} bets all recent bets in the market
+     * @returns A value from 0 to 1, with 1 being a near-certain new user.
+     */
     wasThisBetPlacedByANoob(user, bets) {
 
         let theUser = user;
@@ -324,8 +387,12 @@ export class Whaler {
         else { return noobPoints / 3; }
     }
 
+    /**
+     * This function scans the /bets endpoint for new bets coming in.
+     * @returns array of all markets in which new bets have been placed
+     */
     async detectChanges() {
-        
+
         if ((MINUTE*(this.ellipsesDisplay+1))<Date.now()-this.timeOfLastScan){
             this.log.write("..."); 
             this.ellipsesDisplay++;
@@ -372,34 +439,38 @@ export class Whaler {
 
         }
 
+        //among the bets collected, scan all the bets made since you last ran this method.
+        // (progresses from oldest to newest, so that as we add bets the newest are at the top)
         for (let i = indexOfLastScan - 1; i >= 0; i--) {
 
             if (newBets[i].outcome === "YES" || newBets[i].outcome === "NO") {
-                let parentMarket = this.recentMarkets.find((m) => { return (newBets[i].contractId === m.id); });
-                if (parentMarket === undefined) {
-
-                    this.quickdraw(newBets[i]);
-
-                    do {
-                        try {
-                            parentMarket = await getFullMarket(newBets[i].contractId);
-                        }
-                        catch (e) {
-                            console.log(e);
-                            await sleep(5000);
-                        }
-                    } while (parentMarket === undefined)
-                    this.recentMarkets.unshift(parentMarket);
-                }
-                else {
-                    parentMarket.bets.unshift(newBets[i]);
-                    parentMarket.probability = newBets[i].probAfter;
-                }
 
                 if (!isUnfilledLimitOrder(newBets[i])
                     && !newBets[i].isRedemption
                     && !(this.notableUsers[newBets[i].userId] === "v")
                 ) {
+                    let parentMarket = this.allCachedMarkets.find((m) => { return (newBets[i].contractId === m.id); });
+                    if (parentMarket === undefined) {
+
+                        let mkt = this.stripFullMarket(await getFullMarket(newBets[i].contractId));
+                        this.log.write("======");
+                        this.log.write("New Market: " + mkt.question + ": " + dToP(newBets[i].probAfter));
+
+                        mkt.uniqueTraders = [];
+                        mkt.uniqueTraders.unshift(newBets[i].userId);
+                        this.allCachedMarkets.push(mkt);
+                        this.allCachedMarkets = this.sortListById(this.allCachedMarkets);
+                        parentMarket = mkt;
+                        //if we haven't already cached a copy of the market, we may not have time to query the API to get full market data
+                        //quickdraw() runs some pared-down heuristics to determine whether to place a bet.
+                        //this.quickdraw(newBets[i]);
+                    }
+                    else {
+                        parentMarket.bets.unshift(newBets[i]);
+                        parentMarket.probability = newBets[i].probAfter;
+                    }
+
+                    //if you haven't already marked this market as having received new bets in this run, add it.
                     if (changedMarkets.find((e) => { e === newBets[i].contractId }) === undefined) {
                         changedMarkets.push(newBets[i].contractId);
                         changedMarketsFull.push(parentMarket);
@@ -409,20 +480,6 @@ export class Whaler {
             }
         }
 
-        // // First, check the state of new market creation, print them to the console for the operator's benefit
-        // // otherwise they might throw off comparisons between market lists
-
-        // let numNewMarkets = this.currentMarkets.length;
-        // numNewMarkets -= this.lastMarkets.length;
-        // let newMarketsToDisplay = numNewMarkets;
-        // while (newMarketsToDisplay > 0) {
-        //     this.log.write("======");
-        //     this.log.write("New Market: " + this.currentMarkets[newMarketsToDisplay - 1].question + ": " + dToP(this.currentMarkets[newMarketsToDisplay - 1].probability));
-        //     newMarketsToDisplay--;
-        // }
-
-        //console.log("latest bet: " + newBets[0].id + ", last scanned: " + this.lastScannedBet);
-
         this.lastScannedBet = newBets[0].id;
         this.timeOfLastScan = newBets[0].createdTime;
 
@@ -430,6 +487,10 @@ export class Whaler {
 
     }
 
+    /**
+     * Places rapid bets using incomplete information, to improve program reaction speed.
+     * @param {*} bet 
+     */
     async quickdraw(bet){
         this.log.write("uncached market found. Considering quickdraw bet...");
         let buyingPower = discountDoublings(bet);
@@ -468,6 +529,9 @@ export class Whaler {
 
     }
 
+    /**
+    * Analyze incoming bets, place bets against any with indicators of being misjudged.
+    */
     async huntWhales() {
 
         let marketsToInspect = await this.detectChanges();
@@ -477,12 +541,12 @@ export class Whaler {
             let betToScan = {};
             let betIndex = 0;
 
-            let marketBets = [];
+            //let marketBets = [];
             let aggregateBets = [];
             let betPlacers = [];
 
             let currentMarket = marketsToInspect[i];
-            if (currentMarket.outcomeType==="PSEUDO_NUMERIC"){
+            if (currentMarket.outcomeType === "PSEUDO_NUMERIC") {
                 currentMarket.probability = currentMarket.bets[0].probAfter;
             }
 
@@ -494,10 +558,10 @@ export class Whaler {
                 console.log(currentMarket);
             }
 
-            let inactivityCutoff = this.clock.getDate() - (1000 * 60 * 5);
+            let time = new Date();
+            let inactivityCutoff = time.getDate() - (1000 * 60 * 5);
 
-            //we'll need to record the present state of the market, 
-            //and the LiteMarket fetched a few moments ago may already be obsolete
+            //we'll need to record the present state of the market
             let probFinal = betToScan.probAfter;
 
             //analyzing a bet history is difficult to do programmatically
@@ -515,16 +579,18 @@ export class Whaler {
                 // we also stop at our last bet on the assumption that we successfully corrected the price. (not perfect behaviour, but fine for now)
                 // in the future we will also stop at the last bet by a high-skill trader.
                 (betToScan.createdTime > inactivityCutoff)
-                && (!(this.notableUsers[betToScan.userId] === "me" && !betToScan.isRedemption && !betToScan.orderAmount===QUICKDRAW_AMOUNT))
+                && (!(this.notableUsers[betToScan.userId] === "me" && !betToScan.isRedemption))
             ) {
+
+                inactivityCutoff = betToScan.createdTime - (1000 * 60 * 5);
+
                 if ( //don't collect the following types of bets
                     !isUnfilledLimitOrder(betToScan)
                     && !betToScan.isRedemption
                     && !(this.notableUsers[betToScan.userId] === "me")
                     && !(this.notableUsers[betToScan.userId] === "v")
                 ) {
-                    marketBets.push(betToScan);
-                    inactivityCutoff = betToScan.createdTime - (1000 * 60 * 5);
+                    //marketBets.push(betToScan);
                     // find/create the appropriate aggregate to add this to
                     // we're deciding who to bet against in part based on user characteristics, so each user's
                     // bets are aggregated separately
@@ -549,7 +615,7 @@ export class Whaler {
                         thisAggregate.bettor = this.findIdHolderInList(betToScan.userId, this.allUsers);
                         if (thisAggregate.bettor === undefined) {
                             this.allUsers.push(await getUserById(betToScan.userId));
-                            this.allUsers = this.sortListById(allUsers);
+                            this.allUsers = this.sortListById(this.allUsers);
                             thisAggregate.bettor = this.findIdHolderInList(betToScan.userId, this.allUsers);
                         }
 
@@ -564,8 +630,13 @@ export class Whaler {
                 }
 
                 //Afterwards, move to the next bet and check it against our while condition
-                if (currentMarket.bets.length <= (++betIndex)) { break; }
-                else { betToScan = currentMarket.bets[betIndex]; }
+                if (currentMarket.bets.length <= (++betIndex)) {
+                    betToScan = undefined;
+                    break;
+                }
+                else {
+                    betToScan = currentMarket.bets[betIndex];
+                }
 
                 try { betToScan.createdTime }
                 catch (e) {
@@ -575,26 +646,31 @@ export class Whaler {
                 }
 
             }
+            let probStart = undefined;
+            if (betToScan === undefined) {
+                //if we've run out of bets, just use the probBefore of the oldest
+                probStart = betToScan = currentMarket.bets[currentMarket.bets.length - 1].probBefore;
+            } else {
+                //now that we've collected a bet that does't qualify for analysis, 
+                //we can take its probafter as the "baseline price" prior to the last flurry of betting
+                probStart = betToScan.probAfter;
 
-            //this is 
-            if(this.notableUsers[betToScan.userId] === "me" && !betToScan.isRedemption ){
-                let alreadyDetected = false;
-                for(let i in this.safeguards.betsPlaced){
-                    if(this.safeguards.betsPlaced[i].id===betToScan.id){
-                       alreadyDetected=true; 
+                //this is 
+                if (this.notableUsers[betToScan.userId] === "me" && !betToScan.isRedemption) {
+                    let alreadyDetected = false;
+                    for (let i in this.safeguards.betsPlaced) {
+                        if (this.safeguards.betsPlaced[i].id === betToScan.id) {
+                            alreadyDetected = true;
+                        }
                     }
+                    if (!alreadyDetected) {
+                        this.safeguards.betsPlaced.unshift(betToScan);
+                    }
+                    //this.safeguards.betsByMarket[currentMarket.id].unshift(betToScan);
                 }
-                if (!alreadyDetected){
-                    this.safeguards.betsPlaced.unshift(betToScan);
-                }
-                //this.safeguards.betsByMarket[currentMarket.id].unshift(betToScan);
             }
 
-            //now that we've collected a bet that does't qualify for analysis, 
-            //we can take its probafter as the "baseline price" prior to the last flurry of betting
-            let probStart = betToScan.probAfter;
 
-            if (marketBets.length === 0) { probStart = betToScan.probBefore; }
 
             this.log.write("-----");
             this.log.write(currentMarket.question + ": " + dToP(probStart) + " -> " + dToP(currentMarket.probability));
@@ -702,12 +778,12 @@ export class Whaler {
                     betAlpha *= aggregateBets[i].trustworthiness * aggregateBets[i].trustworthiness;
                     if (betAlpha < 0) { betAlpha = 0; }
 
-                    this.log.write("should I bet?\t| alpha sought\t| noobScore\t| bettorskill\t| trustworthy?\t| buyingPower");
-                    this.log.write(roundToPercent(shouldPlaceBet) + "\t\t| "
-                        + roundToPercent(betAlpha) + "\t\t| "
-                        + roundToPercent(aggregateBets[i].noobScore) + "\t\t| "
-                        + roundToPercent(aggregateBets[i].bettorAssessment) + "\t\t| "
-                        + roundToPercent(aggregateBets[i].trustworthiness) + "\t\t| "
+                    this.log.write("should I bet? | alpha sought\t| noobScore\t| bettorskill\t| trustworthy?\t| buyingPower");
+                    this.log.write(roundToPercent(shouldPlaceBet) + " \t\t| "
+                        + roundToPercent(betAlpha) + "  \t\t| "
+                        + roundToPercent(aggregateBets[i].noobScore) + " \t\t| "
+                        + roundToPercent(aggregateBets[i].bettorAssessment) + " \t\t| "
+                        + roundToPercent(aggregateBets[i].trustworthiness) + " \t\t| "
                         + roundToPercent(aggregateBets[i].buyingPower));
 
                     if ((shouldPlaceBet >= 1 && betAlpha * Math.abs(betDifference) * aggregateBets[i].buyingPower > 0.01) || this.settings.mode === "dry-run-w-mock-betting") {
@@ -755,7 +831,7 @@ export class Whaler {
                             // if (this.settings.autoLiquidate) {
                             //     this.placeLiquidationOrder(this.safeguards.betsPlaced[0], probStart);
                             // }
-                            
+
                             this.checkSafeguards();
                         }
                     }
@@ -765,62 +841,50 @@ export class Whaler {
 
     }
 
+    /**
+     * To be filled in, the function with routine maintenance to be called every five minutes or so.
+     */
     async performMaintenance() {
 
         //if v hasn't bet in 4 hours, slow down.
 
-        //if its ebox no-fee hours, speed up.
+        //if its ISP no-fee hours, speed up.
 
     }
 
+    /**
+     * Performs checks against some basic safeguards against the bot being manipulated.
+     */
     async checkSafeguards() {
 
+        let report = ("bets placed: " + this.safeguards.betsPlaced.length + "\n")
 
-        let report = ("bets placed: "+this.safeguards.betsPlaced.length+"\n")
-        
-        let outgoingCash = 0;   
+        let outgoingCash = 0;
 
-        for (let i = 0; i<this.safeguards.betsPlaced.length; i++){
-            
-            report+=("bet "+i+" ("+this.safeguards.betsPlaced[i].contractId+") amount: "+this.safeguards.betsPlaced[i].amount+"\n");
-            outgoingCash +=this.safeguards.betsPlaced[i].amount;   
+        for (let i = 0; i < this.safeguards.betsPlaced.length; i++) {
+
+            report += ("bet " + i + " (" + this.safeguards.betsPlaced[i].contractId + ") amount: " + this.safeguards.betsPlaced[i].amount + "\n");
+            outgoingCash += this.safeguards.betsPlaced[i].amount;
         }
-        report+=("Outgoing cash: "+outgoingCash)
+        report += ("Outgoing cash: " + outgoingCash)
         this.log.write(report);
         //this.log.close();
-        if(outgoingCash>OUTGOING_LIMIT){throw new Error("Exceeded outgoing cash limit");}
-        
+        if (outgoingCash > OUTGOING_LIMIT) {
+            await this.saveCache();
+            throw new Error("Exceeded outgoing cash limit");
+        }
+
         //throw new Error("Overspent on a single market");
     }
 
-    // async debriefBet(betId) {
-
-    //     await sleep(3000);
-    //     if (this.settings.mode === "bet") {
-    //         try {
-    //             let newBets = await getLatestBets(10);;
-    //             console.log(newBets)
-    //             let myBet = newBets.find((b) => { return b.id === betId; });
-    //             if (myBet!==undefined){
-    //                 return myBet;
-    //             }else{
-    //                 throw new Error("could not find your bet among placed bets");
-    //             }
-    //         }
-    //         catch (e) {
-    //             console.log(e);
-    //             this.log.write("Getting updated bet info for bet failed.");
-    //             if (this.settings.autoLiquidate) { this.log.write("cancelling liquidation bet."); }
-    //             return;
-    //         }
-    //     }
-
-    //     return undefined;
-
-    // }
-
+    /**
+     * If autoLiquidate setting is active, this places a limit order near the probBefore of the counterparty's bet 
+     * with the aim of rapidly exiting the newly purchased position with a profit.
+     * @param {*} bet Our recent bet whose shares we wish to unload.
+     * @param {*} startingPoint the "baseline price": where the price was before th ecounterparty started betting.
+     */
     async placeLiquidationOrder(bet, startingPoint) {
-        if (!this.settings.autoLiquidate) {return;}
+        if (!this.settings.autoLiquidate) { return; }
 
         let myBet = bet;
 
@@ -850,6 +914,83 @@ export class Whaler {
             console.log(sellBet);
         }
 
+    }
+
+    /**
+     * This method builds the market cache by querying for full market data of any market we might trade on
+     */
+    async buildCacheFromScratch() {
+        let unprocessedMarkets = [];
+        let markets = await getAllMarkets();
+
+        for (let i = 0; i < markets.length ; i++) {
+
+            if ((markets[i].outcomeType === "BINARY" || markets[i].outcomeType === "PSEUDO_NUMERIC") && markets[i].isResolved == false) {
+
+                if (i % 100 === 0) { this.log.write("pushed " + i + " markets"); }
+                unprocessedMarkets.push(getFullMarket(markets[i].id));
+
+                //slight delay to the server doesn't reject requests due to excessive volume.
+                await sleep(20);
+
+            }
+        }
+
+        for (let i in unprocessedMarkets) {
+
+            if (i % 100 === 0) { this.log.write("Cached " + i + " markets"); }
+            let cachedMarket = this.stripFullMarket(await unprocessedMarkets[i]);
+            cachedMarket.uniqueTraders = [];
+
+            if (cachedMarket.bets != undefined) {
+
+                for (let i = 0; i < cachedMarket.bets.length && cachedMarket.uniqueTraders.length < UT_THRESHOLD; i++) {
+                    if (cachedMarket.uniqueTraders.find((o) => { return o === cachedMarket.bets[i].userId; }) === undefined) {
+                        cachedMarket.uniqueTraders.push(cachedMarket.bets[i].userId);
+                    }
+                }
+            }
+
+            cachedMarket.bets = [];
+            this.allCachedMarkets.push(cachedMarket);
+
+
+        }
+        this.sortListById(this.allCachedMarkets);
+        await this.saveCache();
+    }
+
+    /**
+     * Saves the market cache to a file so we don't have to download thousands of markets every time we start the program.
+     */
+    async saveCache() {
+
+        try {
+            renameSync("/temp/markets.json", "/temp/marketsBACKUP" + dateFormat(undefined, 'yyyy-mm-d_h-MM_TT') + ".json");
+        } catch (e) {
+            console.log(e)
+        }
+        for (let i in this.allCachedMarkets) {
+            this.allCachedMarkets[i].bets = [];
+        }
+        let stream = await writeFile("/temp/markets.json", JSON.stringify(this.allCachedMarkets));
+    }
+
+    /**
+     * converts market listings into a pared down form we can save locally. (Saving only data we intend to use, or which doesn't take up much space)
+     * @param {*} mkt 
+     * @returns 
+     */
+    stripFullMarket(mkt) {
+        console.log(mkt.question)
+        let cmkt = mkt;
+        cmkt.uniqueTraders = [];
+        delete cmkt.comments;
+        delete cmkt.answers;
+        delete cmkt.description;
+        delete cmkt.textDescription;
+
+        return cmkt;
     }
 
 }

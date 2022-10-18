@@ -48,7 +48,7 @@ export const getFullMarket = async (id) => {
     return market
   }
 
-  const getMarkets = async (limit = 1000, before) => {
+  export const getMarkets = async (limit = 1000, before) => {
 
     let results = null;
     let markets = null;
