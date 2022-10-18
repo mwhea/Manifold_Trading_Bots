@@ -24,9 +24,20 @@ import {
     sleep
 } from './utility_functions.js';
 
-const HOUR = 60 * 60 * 1000;
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * MINUTE;
 const MIN_P_MOVEMENT = .0375;
 const OUTGOING_LIMIT = 500;
+
+const QUICKDRAW_AMOUNT = 20;
+
+//speeds: (run every n milliseconds)
+const HYPERDRIVE = 1;
+const FAST = 50;
+const NORMAL = 250;
+const LEISURELY = 1000;
 
 export class Whaler {
 
@@ -57,32 +68,40 @@ export class Whaler {
             "betsPlaced": []
         };
 
+        this.limitOrderQueue = [];
+
+    }
+
+    getSpeed(){
+        return this.settings.speed;
     }
 
     async additionalConstruction() {
         this.notableUsers = JSON.parse(await this.notableUsers);
 
         this.allUsers = getAllUsers();
+        this.allMarkets = getAllMarkets();
 
         this.lastScannedBet = (await getLatestBets(1))[0].id;
 
-        this.allUsers = await this.allUsers;
+        this.allUsers = this.sortListById(await this.allUsers);
+        this.allMarkets = this.sortListById(await this.allMarkets);
 
     }
 
-    binarySearchUser(id) {
+    findIdHolderInList(id, list) {
         let start = 0;
-        let end = this.allUsers.length - 1;
+        let end = list.length - 1;
         let middle;
-        let searchLog = "User wasn't found";
+        let searchLog = "ID holder ("+id+") wasn't found:\n";
 
         while (start <= end) {
             middle = Math.floor((start + end) / 2);
 
-            if (this.allUsers[middle].id === id) {
+            if (list[middle].id === id) {
                 // found the key
-                return this.allUsers[middle];
-            } else if (this.allUsers[middle].id < id) {
+                return list[middle];
+            } else if (list[middle].id < id) {
                 // continue searching to the right
                 searchLog += "cachedId " + "<" + " id\n";
                 start = middle + 1;
@@ -95,22 +114,24 @@ export class Whaler {
 
         // key wasn't found. Print the environs it searched in to ensure the search is working properly.
 
-        searchLog += ("Immediate Vicinity: " + this.allUsers[end - 1].id + ", " + this.allUsers[end].id + ", " + this.allUsers[end + 1].id);
+        searchLog += ("Immediate Vicinity: " + list[end - 1].id + ", " + list[end].id + ", " + list[end + 1].id);
         this.log.write(searchLog);
         return undefined;
     }
 
-    sortUserList() {
-        this.allUsers = this.allUsers.sort((a, b) => {
+    sortListById(list) {
+        list = list.sort((a, b) => {
             if (a.id < b.id) { return -1; }
             if (a.id > b.id) { return 1; }
             return 0;
         });
+        return list;
     }
 
     isMarketLegit(mkt, bettor) {
 
         let returnVal = 1;
+        let time = new Date();
 
         //don't bet agains tthe market creator on their own market. Insider trading or market manipulation.
         if (mkt.creatorId === bettor.id) {
@@ -124,23 +145,31 @@ export class Whaler {
         }
 
         //If a new user has an extreme profits total they're no doubt a sockpuppet up to schenanigans and should be avoided.
-        if (Math.abs(bettor.profitCached.allTime) > 1500 && bettor.createdTime + ((HOUR * 24 * 3)) > this.clock.getTime()) {
+        if (Math.abs(bettor.profitCached.allTime) > 1500 && bettor.createdTime + ((HOUR * 24 * 3)) > time.getTime()) {
             returnVal -= 300;
         }
-
-        if (mkt.createdTime > this.clock.getTime() - ((HOUR / 60 * 10))) {
-            returnVal -= .25;
-        };
-
+        
         //it's probably not a manipulated market if it has lots of unique traders.
         let uniqueTraders = [];
         let numUTs = 0;
-        for (let i in mkt.bets) {
-            if (uniqueTraders.find((o) => { return o === mkt.bets[i].userId; }) === undefined) {
-                numUTs++;
-                uniqueTraders.push(mkt.bets[i].userId);
+
+        //if you aren't running this with a litemarket
+        if (mkt.bets != undefined) { 
+            for (let i in mkt.bets) {
+                if (uniqueTraders.find((o) => { return o === mkt.bets[i].userId; }) === undefined) {
+                    numUTs++;
+                    uniqueTraders.push(mkt.bets[i].userId);
+                }
             }
         }
+        else  if (mkt.createdTime > time.getTime() - ((MINUTE * 15))) {
+            returnVal -= .40;
+        }
+        //otherwise length open is the only heuristic you have to go on.
+        else if (mkt.createdTime > time.getTime() - ((DAY * 5))) {
+            returnVal -= .25;
+        }
+
         // }.map((item) => { item.userId }).reduce((names, name) => {
         //     const count = names[name] || 0;
         //     names[name] = count + 1;
@@ -307,7 +336,7 @@ export class Whaler {
         let newBets = [];
 
         try {
-            newBets = await getLatestBets(4);
+            newBets = await getLatestBets(3);
         }
         catch (e) {
             console.log(e);
@@ -347,6 +376,9 @@ export class Whaler {
             if (newBets[i].outcome === "YES" || newBets[i].outcome === "NO") {
                 let parentMarket = this.recentMarkets.find((m) => { return (newBets[i].contractId === m.id); });
                 if (parentMarket === undefined) {
+
+                    this.quickdraw(newBets[i]);
+
                     do {
                         try {
                             parentMarket = await getFullMarket(newBets[i].contractId);
@@ -393,6 +425,44 @@ export class Whaler {
         this.lastScannedBet = newBets[0].id;
 
         return changedMarketsFull;
+
+    }
+
+    async quickdraw(bet){
+        this.log.write("uncached market found. Considering quickdraw bet...");
+        let buyingPower = discountDoublings(bet);
+        let bettor = this.findIdHolderInList(bet.userId, this.allUsers);
+        let mkt = this.findIdHolderInList(bet.contractId, this.allMarkets);
+        let betAsArray = [bet];
+
+        let trustworthiness = this.isMarketLegit(mkt, bettor); //returns value from zero to one;
+        let noobScore = this.wasThisBetPlacedByANoob(bettor, betAsArray) //returns value from zero to one;
+        let bettorAssessment = this.assessTraderSkill(bettor, betAsArray, mkt); //returns value from -1 to +1
+
+        let betDifference = Math.abs(bet.probAfter - bet.probBefore);
+        let recoveredSpan = Math.abs(betDifference) * (.2);
+
+
+        if (betDifference * buyingPower > 50 && (noobScore >= 1 || bettorAssessment === -1) && trustworthiness > 0.5) {
+            let counterBet = {
+                contractId: `${mkt.id}`,
+                outcome: null,
+                amount: `${QUICKDRAW_AMOUNT}`
+            }
+            if (bet.outcome === "YES") {
+                counterBet.outcome = "NO";
+                counterBet.limitProb = bet.probAfter - recoveredSpan;
+            } else {
+                counterBet.outcome = "YES";
+                counterBet.limitProb = bet.probAfter + recoveredSpan;
+            }
+
+            placeBet(counterBet, process.env.APIKEY).then((resjson) => {
+                console.log(resjson);
+                //cancelBet(resjson.betId, process.env.APIKEY);
+            });
+            this.log.write("QUICKDRAW on " + aggregateBets[i].bettor + " (" + aggregateBets[i].bettorAssessment + ") over " + currentMarket.question + " (" + currentMarket.probability + ")");
+        }
 
     }
 
@@ -444,7 +514,7 @@ export class Whaler {
                 // we also stop at our last bet on the assumption that we successfully corrected the price. (not perfect behaviour, but fine for now)
                 // in the future we will also stop at the last bet by a high-skill trader.
                 (betToScan.createdTime > inactivityCutoff)
-                && (!(this.notableUsers[betToScan.userId] === "me" && !betToScan.isRedemption))
+                && (!(this.notableUsers[betToScan.userId] === "me" && !betToScan.isRedemption && !betToScan.orderAmount===QUICKDRAW_AMOUNT))
             ) {
                 if ( //don't collect the following types of bets
                     !isUnfilledLimitOrder(betToScan)
@@ -475,11 +545,11 @@ export class Whaler {
                             constituentBets: []
                         };
 
-                        thisAggregate.bettor = this.binarySearchUser(betToScan.userId);
+                        thisAggregate.bettor = this.findIdHolderInList(betToScan.userId, this.allUsers);
                         if (thisAggregate.bettor === undefined) {
                             this.allUsers.push(await getUserById(betToScan.userId));
-                            this.sortUserList();
-                            thisAggregate.bettor = this.binarySearchUser(betToScan.userId);
+                            this.allUsers = this.sortListById(allUsers);
+                            thisAggregate.bettor = this.findIdHolderInList(betToScan.userId, this.allUsers);
                         }
 
                         aggregateBets.push(thisAggregate);
