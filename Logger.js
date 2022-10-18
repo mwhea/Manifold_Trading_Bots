@@ -13,7 +13,7 @@ export class Logger {
 
     write(string) {
 
-        let msg = "[" + dateFormat(undefined, 'yyyy-mm-d h:MM:ss TT') + "] " + string
+        let msg = "[" + dateFormat(undefined, 'yyyy-mm-d h:MM:ss.l TT') + "] " + string
         console.log(msg);
         this.stream.write(msg+"\n");
 
