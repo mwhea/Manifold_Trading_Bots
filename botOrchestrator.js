@@ -35,10 +35,7 @@ botSettings.streaker.runEvery = HOUR * 6;
 botSettings.attritionTrader.runEvery = HOUR;
 botSettings.velocitySlayer.runEvery = 1000 * 20;
 
-
 let cycles = 0;
-let me = await getMe();
-let startingFunds = me.balance;
 //let runTill = new Date('09/25/2022 07:00')
 let vsRuns = 0;
 
@@ -50,7 +47,6 @@ let streaker = new Streaker(botSettings.streaker);
 streaker.keepTheStreakAlive();
 
 while (true) {
-
     
     //attritionTrade();
 
@@ -69,11 +65,6 @@ while (true) {
     }
 
     cycles++;
-
-    if ((await getMe()).balance < startingFunds - 500) {
-        console.log("balance depleted; emergency shutdown engaged.");
-        break;
-    };
 
     await sleep(CYCLETIME);
 

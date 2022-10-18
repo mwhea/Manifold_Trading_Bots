@@ -26,6 +26,7 @@ import {
 
 const HOUR = 60 * 60 * 1000;
 const MIN_P_MOVEMENT = .0375;
+const OUTGOING_LIMIT = 500;
 
 export class Whaler {
 
@@ -48,6 +49,13 @@ export class Whaler {
 
         this.clock = new Date();
         this.ellipsesDisplay = 0;
+        this.timeOfLastScan = this.clock.getDate();
+
+        this.safeguards = {
+            "runStartedAt": this.clock.getDate(),
+            "moneySpent": 0,
+            "betsPlaced": []
+        };
 
     }
 
@@ -497,6 +505,20 @@ export class Whaler {
 
             }
 
+            //this is 
+            if(this.notableUsers[betToScan.userId] === "me" && !betToScan.isRedemption ){
+                let alreadyDetected = false;
+                for(let i in this.safeguards.betsPlaced){
+                    if(this.safeguards.betsPlaced[i].id===betToScan.id){
+                       alreadyDetected=true; 
+                    }
+                }
+                if (!alreadyDetected){
+                    this.safeguards.betsPlaced.unshift(betToScan);
+                }
+                //this.safeguards.betsByMarket[currentMarket.id].unshift(betToScan);
+            }
+
             //now that we've collected a bet that does't qualify for analysis, 
             //we can take its probafter as the "baseline price" prior to the last flurry of betting
             let probStart = betToScan.probAfter;
@@ -655,10 +677,15 @@ export class Whaler {
                                 bet.shares = bet.amount / bet.limitProb;
                             }
 
+                            //we need to get a copy of the bet from Manifold's servers because eg. front-running may have cause it 
+                            //to have purchased different quantities, at different prices, than expected
+                            //this.debriefBet().then((b) => { this.safeguards.betsPlaced.unshift(b); }).then(() => { this.placeLiquidationOrder(this.safeguards.betsPlaced[0], probStart); }).then(() => this.checkSafeguards());
                             //also prepare a limit order to liquidate it.
-                            if (this.settings.autoLiquidate) {
-                                this.placeLiquidationOrder(bet, probStart);
-                            }
+                            // if (this.settings.autoLiquidate) {
+                            //     this.placeLiquidationOrder(this.safeguards.betsPlaced[0], probStart);
+                            // }
+                            
+                            this.checkSafeguards();
                         }
                     }
                 }
@@ -667,21 +694,64 @@ export class Whaler {
 
     }
 
+    async performMaintenance() {
+
+        //if v hasn't bet in 4 hours, slow down.
+
+        //if its ebox no-fee hours, speed up.
+
+    }
+
+    async checkSafeguards() {
+
+
+        let report = ("bets placed: "+this.safeguards.betsPlaced.length+"\n")
+        
+        let outgoingCash = 0;   
+
+        for (let i = 0; i<this.safeguards.betsPlaced.length; i++){
+            
+            report+=("bet "+i+" ("+this.safeguards.betsPlaced[i].contractId+") amount: "+this.safeguards.betsPlaced[i].amount+"\n");
+            outgoingCash +=this.safeguards.betsPlaced[i].amount;   
+        }
+        report+=("Outgoing cash: "+outgoingCash)
+        this.log.write(report);
+        //this.log.close();
+        if(outgoingCash>OUTGOING_LIMIT){throw new Error("Exceeded outgoing cash limit");}
+        
+        //throw new Error("Overspent on a single market");
+    }
+
+    // async debriefBet(betId) {
+
+    //     await sleep(3000);
+    //     if (this.settings.mode === "bet") {
+    //         try {
+    //             let newBets = await getLatestBets(10);;
+    //             console.log(newBets)
+    //             let myBet = newBets.find((b) => { return b.id === betId; });
+    //             if (myBet!==undefined){
+    //                 return myBet;
+    //             }else{
+    //                 throw new Error("could not find your bet among placed bets");
+    //             }
+    //         }
+    //         catch (e) {
+    //             console.log(e);
+    //             this.log.write("Getting updated bet info for bet failed.");
+    //             if (this.settings.autoLiquidate) { this.log.write("cancelling liquidation bet."); }
+    //             return;
+    //         }
+    //     }
+
+    //     return undefined;
+
+    // }
+
     async placeLiquidationOrder(bet, startingPoint) {
+        if (!this.settings.autoLiquidate) {return;}
 
         let myBet = bet;
-        console.log(myBet);
-        if (this.settings.mode === "bet") {
-            try {
-                let updatedMkt = await latestBets(10);;
-                myBet = updatedMkt.find((b) => { return b.id === myBet.id; });
-            }
-            catch (e) {
-                console.log(e);
-                this.log.write("Getting updated bet info for liquidation bet failed. cancelling liquidation bet.");
-                return;
-            }
-        }
 
         let sellBet = {
             contractId: `${myBet.contractId}`,
