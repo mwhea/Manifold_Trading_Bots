@@ -387,29 +387,139 @@ export class Whaler {
         else { return noobPoints / 3; }
     }
 
+    
+    async getSynchronized() {
+
+        let attempts = [];
+        let t1 = new Date();
+        let startTime = t1.getTime();
+        let firstUnfulfilledPromise =0;
+        let firstNewBet = undefined;
+
+        while(true){
+            let rescontents = undefined;
+            let request = fetch(`https:manifold.markets/api/v0/bets?limit=1`).then(
+                (res) => {return res;}
+              )
+            attempts.push({"latestBet": request, "sentTime": (new Date()).getTime(), "receivedTime": 0});
+
+            
+            for(let i =firstUnfulfilledPromise; i<attempts.length;i++){
+                //console.log(attempts[firstUnfulfilledPromise].latestBet);
+                if(attempts[firstUnfulfilledPromise].latestBet.PromiseStatus!=="pending"){
+                        let dResults = await attempts[i].latestBet;
+                        let bets = await dResults.json();
+                    console.log(dResults.headers.age);
+                    console.log(dResults.headers['cache-control']);
+
+                    if(firstNewBet===undefined){
+                        firstNewBet=bets[0].id;
+                    }
+                    else if (firstNewBet!=bets[0].id){
+                        console.log((attempts[i].sentTime-startTime)+", received at "+((new Date()).getTime()-startTime));
+                        firstNewBet=bets[0].id;
+                    }
+                    else {
+                        firstUnfulfilledPromise++;
+                    }
+                    i++;
+                }
+            }
+
+            await sleep(50);
+        }
+
+
+    }
+
+
+    async collectBets() {
+
+        let attempts = [];
+        let firstUnfulfilledPromise =0;
+        let timeOfLastSuccessfulBetGathering = undefined;
+        let firstNewBet = undefined;    
+        let lastBet=undefined;
+        let penultimateBet = undefined;
+
+        let notACurve = [-7000, -6000, -5000, -4000, -3000, -2000, -1000, 0, 1000, 2000, 3000, 4000, 5000, 6000, 7000];
+        let bellCurve = [-1000, -250, -100, -50, -35, -20, -12, -5, 0, 5, 12, 20, 35, 50, 100, 250, 1000, 2500, 5000,];
+        let thisCurve = undefined;
+
+        while (true) {
+            attempts = [];
+            firstUnfulfilledPromise =0;
+            let caughtOne=false;
+
+            if (timeOfLastSuccessfulBetGathering === undefined) {
+                timeOfLastSuccessfulBetGathering = (new Date()).getTime()+7000;
+                lastBet = (await getLatestBets(1))[0].id;
+                thisCurve = notACurve;
+            } else {
+                thisCurve = bellCurve;
+            }
+
+            let i = 0;
+
+            while (i < thisCurve.length) {
+                if ((new Date()).getTime() > timeOfLastSuccessfulBetGathering + thisCurve[i]) {
+
+                    attempts.push({ "latestBet": getLatestBets(20), "sentTime": (new Date()).getTime() });
+
+                    for (let j = firstUnfulfilledPromise; j < attempts.length; j++) {
+                        //console.log(attempts[firstUnfulfilledPromise].latestBet);
+                        if (attempts[firstUnfulfilledPromise].latestBet.PromiseStatus !== "pending") {
+                            if (lastBet != (await attempts[j].latestBet)[0].id && penultimateBet != (await attempts[j].latestBet)[0].id) {
+                                console.log((await attempts[j].latestBet)[0].id+" at "+attempts[j].sentTime);
+                                this.detectChanges(await attempts[j].latestBet);
+                                this.log.write("Timing was off by "+thisCurve[i]+" milliseconds");
+                                penultimateBet = lastBet;
+                                lastBet = (await attempts[j].latestBet)[0].id;
+                                timeOfLastSuccessfulBetGathering = attempts[j].sentTime;
+                                caughtOne=true;
+                                break;
+                            }
+                            else {
+                                firstUnfulfilledPromise++;
+                            }
+                        }
+                        
+                        j++;
+                    }
+                    
+                i++;
+                }
+                
+                await sleep(5);
+            }
+            if(!caughtOne){
+            //on no new bets in 15 secs:
+            this.log.write("....");
+            timeOfLastSuccessfulBetGathering += 15 * SECOND;
+        }
+        }
+
+    }
+
+
     /**
      * This function scans the /bets endpoint for new bets coming in.
      * @returns array of all markets in which new bets have been placed
      */
-    async detectChanges() {
-
-        if ((MINUTE*(this.ellipsesDisplay+1))<Date.now()-this.timeOfLastScan){
-            this.log.write("..."); 
-            this.ellipsesDisplay++;
-        }
+    async detectChanges(nb) {
 
         let changedMarkets = [];
         let changedMarketsFull = [];
 
-        let newBets = [];
+        let newBets = nb;
 
-        try {
-            newBets = await getLatestBets(3);
-        }
-        catch (e) {
-            console.log(e);
-            return;
-        }
+        // try {
+        //     newBets = await getLatestBets(3);
+        // }
+        // catch (e) {
+        //     console.log(e);
+        //     return;
+        // }
 
         let indexOfLastScan = undefined;
 
@@ -421,7 +531,7 @@ export class Whaler {
 
         if (indexOfLastScan === undefined) {
             try {
-                newBets = await getLatestBets(40);
+                newBets = await getLatestBets(200);
                 for (let i = 0; i < newBets.length - 1; i++) {
                     if (newBets[i].id === this.lastScannedBet) {
                         indexOfLastScan = i;
@@ -483,58 +593,22 @@ export class Whaler {
         this.lastScannedBet = newBets[0].id;
         this.timeOfLastScan = newBets[0].createdTime;
 
-        return changedMarketsFull;
-
-    }
-
-    /**
-     * Places rapid bets using incomplete information, to improve program reaction speed.
-     * @param {*} bet 
-     */
-    async quickdraw(bet){
-        this.log.write("uncached market found. Considering quickdraw bet...");
-        let buyingPower = discountDoublings(bet);
-        let bettor = this.findIdHolderInList(bet.userId, this.allUsers);
-        let mkt = this.findIdHolderInList(bet.contractId, this.allMarkets);
-        let betAsArray = [bet];
-
-        let trustworthiness = this.isMarketLegit(mkt, bettor); //returns value from zero to one;
-        let noobScore = this.wasThisBetPlacedByANoob(bettor, betAsArray) //returns value from zero to one;
-        let bettorAssessment = this.assessTraderSkill(bettor, betAsArray, mkt); //returns value from -1 to +1
-
-        let betDifference = Math.abs(bet.probAfter - bet.probBefore);
-        let recoveredSpan = Math.abs(betDifference) * (.2);
-
-
-        if (betDifference * buyingPower > 50 && (noobScore >= 1 || bettorAssessment === -1) && trustworthiness > 0.5) {
-            let counterBet = {
-                contractId: `${mkt.id}`,
-                outcome: null,
-                amount: `${QUICKDRAW_AMOUNT}`
-            }
-            if (bet.outcome === "YES") {
-                counterBet.outcome = "NO";
-                counterBet.limitProb = bet.probAfter - recoveredSpan;
-            } else {
-                counterBet.outcome = "YES";
-                counterBet.limitProb = bet.probAfter + recoveredSpan;
-            }
-
-            placeBet(counterBet, process.env.APIKEY).then((resjson) => {
-                console.log(resjson);
-                //cancelBet(resjson.betId, process.env.APIKEY);
-            });
-            this.log.write("QUICKDRAW on " + aggregateBets[i].bettor + " (" + aggregateBets[i].bettorAssessment + ") over " + currentMarket.question + " (" + currentMarket.probability + ")");
+        //if nothing has been logged for a while, print some ellipses to it's clear the program is still active.
+        if ((MINUTE * (this.ellipsesDisplay + 1)) < Date.now() - this.timeOfLastScan) {
+            this.log.write("...");
+            this.ellipsesDisplay++;
         }
 
+        this.huntWhales(changedMarketsFull);
+
     }
 
     /**
-    * Analyze incoming bets, place bets against any with indicators of being misjudged.
-    */
-    async huntWhales() {
+     * Analyze incoming bets, place bets against any with indicators of being misjudged.
+     */
+    async huntWhales(mti) {
 
-        let marketsToInspect = await this.detectChanges();
+        let marketsToInspect = mti
 
         for (let i in marketsToInspect) {
 
@@ -841,6 +915,7 @@ export class Whaler {
 
     }
 
+    
     /**
      * To be filled in, the function with routine maintenance to be called every five minutes or so.
      */

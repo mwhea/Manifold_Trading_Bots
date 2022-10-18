@@ -52,7 +52,7 @@ while (true) {
     //attritionTrade();
 
     if (botSettings.whaler.active) {
-        await whaler.huntWhales();
+       await whaler.collectBets();
     }
 
     if (botSettings.velocitySlayer.active && cycles * CYCLETIME > botSettings.velocitySlayer.runEvery * vsRuns) {
