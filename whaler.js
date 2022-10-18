@@ -139,6 +139,7 @@ export class Whaler {
             if (!(
                 this.notableUsers[mkt.creatorId] === "BTE"
                 || this.notableUsers[mkt.creatorId] === "BTEF2P"
+                || this.notableUsers[mkt.creatorId] === "Bot Dad"
             )) {
                 returnVal -= .75;
             }
@@ -188,7 +189,8 @@ export class Whaler {
         if (this.notableUsers[mkt.creatorId] === "Yev"
             || this.notableUsers[mkt.creatorId] === "Spindle"
             || this.notableUsers[mkt.creatorId] === "NotMyPresident"
-            || this.notableUsers[mkt.creatorId] === "Gurkenglas") {
+            || this.notableUsers[mkt.creatorId] === "Gurkenglas"
+            || this.notableUsers[bettor.id] === "GeorgeVii") {
             returnVal -= .25;
         }
 
