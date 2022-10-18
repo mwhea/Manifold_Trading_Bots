@@ -22,10 +22,8 @@ export class Streaker {
 
         for (let i in this.settings.accountsToMaintain) {
             let lastBet = (await getUsersBets(this.settings.accountsToMaintain[i], 1))[0];
-            console.log(lastBet)
-            console.log((lastBet.createdTime-1660000000000)+" + "+(1000 *60*60 * 16)+" < "+(time.getTime()-1660000000000)+"?")
             if (lastBet.createdTime + (1000 *60*60 * 16) < time.getTime()) {
-                console.log("placing bet for "+this.settings.accountsToMaintain[i]);
+                console.log("streaker placing bet for "+this.settings.accountsToMaintain[i]);
                 let j = 0;
                 let bet = undefined;
                 let key = undefined;

@@ -133,7 +133,7 @@ export class Whaler {
         let returnVal = 1;
         let time = new Date();
 
-        //don't bet agains tthe market creator on their own market. Insider trading or market manipulation.
+        //don't bet agains the market creator on their own market. Insider trading or market manipulation.
         if (mkt.creatorId === bettor.id) {
             //exclude some trustworthy market creators
             if (!(
@@ -364,7 +364,7 @@ export class Whaler {
                 }
             }
             catch (e) {
-                console.log("NewBets collection RERUN failed");
+                this.log.write("NewBets collection RERUN failed");
                 console.log(e);
                 return;
             }

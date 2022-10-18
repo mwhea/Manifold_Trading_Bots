@@ -18,7 +18,8 @@ import {
 import { Streaker } from "./streaker.js";
 
 const clock = new Date();
-const CYCLETIME = 1000;
+//note that due to latency the thing only runs about 4 times a sec with zero delay.
+const CYCLETIME = 5;
 
 const sleep = (ms) => {
     return new Promise(resolve => setTimeout(resolve, ms))

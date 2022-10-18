@@ -20,7 +20,6 @@ export const getUsersBets = (username, bets) => {
   if (bets!==undefined){
     url+=`&limit=${bets}`;
   }
-  console.log(url)
   return fetch(url).then(
     (res) => res.json()
   )
