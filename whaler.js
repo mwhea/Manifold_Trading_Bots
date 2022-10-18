@@ -324,11 +324,10 @@ export class Whaler {
 
     async detectChanges() {
         
-        if (this.ellipsesDisplay % 10 == 0){
-            this.log.write("...");
+        if ((MINUTE*(this.ellipsesDisplay+1))<Date.now()-this.timeOfLastScan){
+            this.log.write("..."); 
+            this.ellipsesDisplay++;
         }
-        this.ellipsesDisplay++;
-        
 
         let changedMarkets = [];
         let changedMarketsFull = [];
@@ -402,10 +401,10 @@ export class Whaler {
                     if (changedMarkets.find((e) => { e === newBets[i].contractId }) === undefined) {
                         changedMarkets.push(newBets[i].contractId);
                         changedMarketsFull.push(parentMarket);
+                        this.ellipsesDisplay = 0;
                     }
                 }
             }
-
         }
 
         // // First, check the state of new market creation, print them to the console for the operator's benefit
@@ -423,6 +422,7 @@ export class Whaler {
         //console.log("latest bet: " + newBets[0].id + ", last scanned: " + this.lastScannedBet);
 
         this.lastScannedBet = newBets[0].id;
+        this.timeOfLastScan = newBets[0].createdTime;
 
         return changedMarketsFull;
 
@@ -480,7 +480,6 @@ export class Whaler {
             let betPlacers = [];
 
             let currentMarket = marketsToInspect[i];
-	     this.ellipsesDisplay = 0;
             if (currentMarket.outcomeType==="PSEUDO_NUMERIC"){
                 currentMarket.probability = currentMarket.bets[0].probAfter;
             }
