@@ -33,6 +33,7 @@ import {
     isUnfilledLimitOrder,
     sleep
 } from './utility_functions.js';
+import { time } from 'console';
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
@@ -75,6 +76,7 @@ export class Whaler {
         this.clock = new Date();
         this.ellipsesDisplay = 0;
         this.timeOfLastScan = this.clock.getDate();
+        this.timeOfLastBackup = this.clock.getDate();
 
         this.safeguards = {
             "runStartedAt": this.clock.getDate(),
@@ -107,20 +109,17 @@ export class Whaler {
             console.log("Unable to load market cache, building one anew")
             this.allCachedMarkets = [];
             await this.buildCacheFromScratch();
+        }        
+        if (this.allCachedMarkets.length === 0) {
+            await this.buildCacheFromScratch();
+            // throw new Error("market cache missing. Filling it anew");
         }
-        //this.backupCache();
 
         this.allUsers = getAllUsers();
 
         this.lastScannedBet = (await getLatestBets(1))[0].id;
 
         this.allUsers = this.sortListById(await this.allUsers);
-        
-        
-        if (this.allCachedMarkets.length === 0) {
-            await this.buildCacheFromScratch();
-            // throw new Error("market cache missing. Filling it anew");
-        }
 
     }
 
@@ -492,11 +491,16 @@ export class Whaler {
                 
                 await sleep(5);
             }
-            if(!caughtOne){
-            //on no new bets in 15 secs:
-            this.log.write("....");
-            timeOfLastSuccessfulBetGathering += 15 * SECOND;
-        }
+            if (!caughtOne) {
+                //on no new bets in 15 secs:
+                this.log.write("....");
+                timeOfLastSuccessfulBetGathering += 15 * SECOND;
+                
+                if((new Date()).getTime()>this.timeOfLastBackup+30*MINUTE){
+                    this.saveCache();
+                    this.timeOfLastBackup=(new Date()).getTime();
+                }
+            }
         }
 
     }
@@ -1035,16 +1039,20 @@ export class Whaler {
         await this.saveCache();
     }
 
-    /**
-     * Saves the market cache to a file so we don't have to download thousands of markets every time we start the program.
-     */
-    async saveCache() {
 
+    async backupCache() {
         try {
             renameSync("/temp/markets.json", "/temp/marketsBACKUP" + dateFormat(undefined, 'yyyy-mm-d_h-MM_TT') + ".json");
         } catch (e) {
             console.log(e)
         }
+
+    }
+    /**
+     * Saves the market cache to a file so we don't have to download thousands of markets every time we start the program.
+     */
+    async saveCache() {
+      
         for (let i in this.allCachedMarkets) {
             this.allCachedMarkets[i].bets = [];
         }
