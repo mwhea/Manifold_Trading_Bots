@@ -1010,25 +1010,47 @@ export class Whaler {
         for (let i in unprocessedMarkets) {
 
             if (i % 100 === 0) { this.log.write("Cached " + i + " markets"); }
-            let cachedMarket = this.stripFullMarket(await unprocessedMarkets[i]);
-            cachedMarket.uniqueTraders = [];
-
-            if (cachedMarket.bets != undefined) {
-
-                for (let i = 0; i < cachedMarket.bets.length && cachedMarket.uniqueTraders.length < UT_THRESHOLD; i++) {
-                    if (cachedMarket.uniqueTraders.find((o) => { return o === cachedMarket.bets[i].userId; }) === undefined) {
-                        cachedMarket.uniqueTraders.push(cachedMarket.bets[i].userId);
-                    }
-                }
-            }
-
-            cachedMarket.bets = [];
-            this.allCachedMarkets.push(cachedMarket);
-
+            await this.cacheMarket(await unprocessedMarkets[i]);
 
         }
         this.sortListById(this.allCachedMarkets);
+        await this.backupCache();
         await this.saveCache();
+    }
+
+    /**
+     * Creates a new array in a FullMarket storing only a list of unique trader ids
+     * (This is more lightweight than the full bet list for medium-term storage.)
+     * @param {*} mkt 
+     */
+    setUniqueTraders(mkt){
+
+        mkt.uniqueTraders = [];
+
+        if (mkt.bets != undefined) {
+
+            for (let i = 0; i < mkt.bets.length && mkt.uniqueTraders.length < UT_THRESHOLD; i++) {
+                if (mkt.uniqueTraders.find((o) => { return o === mkt.bets[i].userId; }) === undefined) {
+                    mkt.uniqueTraders.push(mkt.bets[i].userId);
+                }
+            }
+        }
+
+    }
+
+    /**
+     * Adds a FullMarket to the market cache
+     * @param {*} fmkt 
+     */
+    async cacheMarket(fmkt) {
+
+        let cachedMarket = this.stripFullMarket(fmkt);
+
+        this.setUniqueTraders(fmkt);
+
+        cachedMarket.bets = [];
+        this.allCachedMarkets.push(cachedMarket);
+
     }
 
 
@@ -1040,6 +1062,7 @@ export class Whaler {
         }
 
     }
+
     /**
      * Saves the market cache to a file so we don't have to download thousands of markets every time we start the program.
      */
@@ -1057,9 +1080,11 @@ export class Whaler {
      * @returns 
      */
     stripFullMarket(mkt) {
+
         console.log(mkt.question)
         let cmkt = mkt;
         cmkt.uniqueTraders = [];
+
         delete cmkt.comments;
         delete cmkt.answers;
         delete cmkt.description;
