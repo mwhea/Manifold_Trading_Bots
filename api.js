@@ -4,9 +4,15 @@ import fetch from 'node-fetch'
 const API_URL = process.env.APIURL; 
 
 export const getLatestBets = (num) => {
-  return fetch(`${API_URL}/bets?limit=${num}`).then(
-    (res) => res.json()
-  )
+  try {
+    return fetch(`${API_URL}/bets?limit=${num}`).then(
+      (res) => res.json()
+    )
+  }
+  catch (e) {
+    console.log(e);
+    return undefined;
+  }
 }
 
 export const getUserById = async  (id) => {

@@ -41,11 +41,12 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * MINUTE;
 const MIN_P_MOVEMENT = .0375;
 
-const UT_THRESHOLD = 20
+const UT_THRESHOLD = 20;
+const CACHING_DURATION = 15000;
 
 const OUTGOING_LIMIT = 1000;
 //speeds: (run every n milliseconds)
-const HYPERDRIVE = 1;
+const HYPERDRIVE = 10;
 const FAST = 50;
 const NORMAL = 250;
 const LEISURELY = 1000;
@@ -386,116 +387,107 @@ export class Whaler {
         else { return noobPoints / 3; }
     }
 
-    
-    async getSynchronized() {
 
-        let attempts = [];
-        let t1 = new Date();
-        let startTime = t1.getTime();
-        let firstUnfulfilledPromise =0;
-        let firstNewBet = undefined;
-
-        while(true){
-            let rescontents = undefined;
-            let request = fetch(`https:manifold.markets/api/v0/bets?limit=1`).then(
-                (res) => {return res;}
-              )
-            attempts.push({"latestBet": request, "sentTime": (new Date()).getTime(), "receivedTime": 0});
-
-            
-            for(let i =firstUnfulfilledPromise; i<attempts.length;i++){
-                //console.log(attempts[firstUnfulfilledPromise].latestBet);
-                if(attempts[firstUnfulfilledPromise].latestBet.PromiseStatus!=="pending"){
-                        let dResults = await attempts[i].latestBet;
-                        let bets = await dResults.json();
-                    console.log(dResults.headers.age);
-                    console.log(dResults.headers['cache-control']);
-
-                    if(firstNewBet===undefined){
-                        firstNewBet=bets[0].id;
-                    }
-                    else if (firstNewBet!=bets[0].id){
-                        console.log((attempts[i].sentTime-startTime)+", received at "+((new Date()).getTime()-startTime));
-                        firstNewBet=bets[0].id;
-                    }
-                    else {
-                        firstUnfulfilledPromise++;
-                    }
-                    i++;
-                }
-            }
-
-            await sleep(50);
-        }
-
-
-    }
 
 
     async collectBets() {
 
-        let attempts = [];
-        let firstUnfulfilledPromise =0;
-        let timeOfLastSuccessfulBetGathering = undefined;
-        let firstNewBet = undefined;    
-        let lastBet=undefined;
+        let newBetsExpectedAt = undefined;
+        let lastBet = undefined;
         let penultimateBet = undefined;
 
-        let notACurve = [-7000, -6000, -5000, -4000, -3000, -2000, -1000, 0, 1000, 2000, 3000, 4000, 5000, 6000, 7000];
-        let bellCurve = [-1000, -250, -100, -50, -35, -20, -12, -5, 0, 5, 12, 20, 35, 50, 100, 250, 1000, 2500, 5000,];
+        let notACurve = [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000];
+        let bellCurve = [-3000, -1000, -250, -100, -50, -35, -20, -12, -5, 0, 5, 12, 20, 35, 50, 100, 250, 1000, 3000];
+
+        let cachingInactive = []
+        let num = 0;
+        while (num<=CACHING_DURATION){
+            cachingInactive.push(num);
+            num+=this.getSpeed();
+        }
+
         let thisCurve = undefined;
+        let whiffs = 0;
+
+        let attempts = [];
 
         while (true) {
-            attempts = [];
-            firstUnfulfilledPromise =0;
-            let caughtOne=false;
+            let caughtOne = false;
+            let initialNumOfBets = 2;
 
-            if (timeOfLastSuccessfulBetGathering === undefined) {
-                timeOfLastSuccessfulBetGathering = (new Date()).getTime()+7000;
+            if (newBetsExpectedAt === undefined) {
+                newBetsExpectedAt = (new Date()).getTime();
                 lastBet = (await getLatestBets(1))[0].id;
                 thisCurve = notACurve;
+            } else if (whiffs>10) {
+                thisCurve = notACurve;
+                initialNumOfBets = 2;
+            } else if (!this.settings.cachingActive) {
+                thisCurve = cachingInactive;
+                initialNumOfBets = 2;
             } else {
                 thisCurve = bellCurve;
+                initialNumOfBets = 20;
             }
 
             let i = 0;
 
-            while (i < thisCurve.length) {
-                if ((new Date()).getTime() > timeOfLastSuccessfulBetGathering + thisCurve[i]) {
-
-                    attempts.push({ "latestBet": getLatestBets(20), "sentTime": (new Date()).getTime() });
-
-                    for (let j = firstUnfulfilledPromise; j < attempts.length; j++) {
-                        //console.log(attempts[firstUnfulfilledPromise].latestBet);
-                        if (attempts[firstUnfulfilledPromise].latestBet.PromiseStatus !== "pending") {
-                            if (lastBet != (await attempts[j].latestBet)[0].id && penultimateBet != (await attempts[j].latestBet)[0].id) {
-                                console.log((await attempts[j].latestBet)[0].id+" at "+attempts[j].sentTime);
-                                this.detectChanges(await attempts[j].latestBet);
-                                this.log.write("Timing was off by "+thisCurve[i]+" milliseconds");
-                                penultimateBet = lastBet;
-                                lastBet = (await attempts[j].latestBet)[0].id;
-                                timeOfLastSuccessfulBetGathering = attempts[j].sentTime;
-                                caughtOne=true;
-                                break;
-                            }
-                            else {
-                                firstUnfulfilledPromise++;
-                            }
-                        }
-                        
-                        j++;
-                    }
-                    
-                i++;
-                }
+            while (i < thisCurve.length && !caughtOne) {
                 
                 await sleep(5);
+
+                // If enough time has elapsed, add a new request to the queue
+                if ((new Date()).getTime() > newBetsExpectedAt + thisCurve[i]) {
+
+                    attempts.push({ "latestBets": getLatestBets(initialNumOfBets), "sentTime": (new Date()).getTime() });
+                    i++;
+
+                }
+
+                //Check which attempts have been responded to
+                let j = 0;
+                while (j < attempts.length) {
+
+                    if (attempts[j].latestBets.PromiseStatus !== "pending") {
+                        let thisAttempt = attempts.shift();
+                        let theseBets = await thisAttempt.latestBets;
+                        if (theseBets === undefined) {
+                            whiffs++;
+                        }
+                        else {
+                            whiffs--;
+
+                            if ( //if it's a bet we haven't seen yet
+                                lastBet != theseBets[0].id
+                                && penultimateBet != theseBets[0].id
+                            ) {
+                                //send it for analysis and counterbetting
+                                //you should probably move the requerying if inadequate to here
+                                await this.detectChanges(theseBets);
+                                penultimateBet = lastBet;
+                                lastBet = theseBets[0].id;
+                                if (this.settings.cachingActive) {
+                                    this.log.write("Timing was off by " + (thisCurve[i] + " milliseconds");
+                                    newBetsExpectedAt = thisAttempt.sentTime + CACHING_DURATION;
+                                    caughtOne = true;
+                                    attempts = [];
+                                }
+                            }
+                        }
+                    }
+                    else {
+                        j++;
+                    }
+                }
             }
-            if (!caughtOne) {
+            if (!caughtOne || !this.settings.cachingActive) {
                 //on no new bets in 15 secs:
-                this.log.write("....");
-                timeOfLastSuccessfulBetGathering += 15 * SECOND;
+                newBetsExpectedAt += CACHING_DURATION;
+            }
                 
+            if (!caughtOne) {
+                
+                this.log.write("....");
                 if((new Date()).getTime()>this.timeOfLastBackup+30*MINUTE){
                     this.saveCache();
                     this.timeOfLastBackup=(new Date()).getTime();
