@@ -18,4 +18,12 @@ export class Logger {
         this.stream.write(msg+"\n");
 
     }
+
+    sublog(string) {
+
+        let msg = "\t" + string
+        console.log(msg);
+        this.stream.write(msg+"\n");
+
+    }
 }
