@@ -61,6 +61,7 @@ export class Whaler {
         this.log = new Logger("whaler");
 
         this.settings = whalerSettings;
+        this.adjustedSpeed = this.settings.speed;
 
         this.notableUsers = readFile(new URL('./notableUsers.json', import.meta.url));
 
@@ -78,6 +79,7 @@ export class Whaler {
         this.ellipsesDisplay = 0;
         this.timeOfLastScan = this.clock.getDate();
         this.timeOfLastBackup = this.clock.getDate();
+        this.timeOfLastBet = undefined;
 
         this.safeguards = {
             "runStartedAt": this.clock.getDate(),
@@ -92,7 +94,7 @@ export class Whaler {
     }
 
     getSpeed() {
-        return this.settings.runEvery;
+        return this.adjustedSpeed;
     }
 
     /**
@@ -496,7 +498,8 @@ export class Whaler {
                 this.log.write("....");
                 if ((new Date()).getTime() > this.timeOfLastBackup + 30 * MINUTE) {
                     this.saveCache();
-                    this.timeOfLastBackup=(new Date()).getTime();
+                    //this.performMaintenance();
+                    this.timeOfLastBackup = (new Date()).getTime();
                 }
             }
         }
@@ -734,9 +737,8 @@ export class Whaler {
                         }
                     }
                     if (!alreadyDetected) {
-                        this.safeguards.betsPlaced.unshift(betToScan);
+                        this.betDebrief(betToScan)
                     }
-                    //this.safeguards.betsByMarket[currentMarket.id].unshift(betToScan);
                 }
             }
 
@@ -884,6 +886,7 @@ export class Whaler {
                             let myBetId = undefined;
 
                             if (this.settings.mode === "bet") {
+                                this.timeOfLastBet = aggregateBets[i].constituentBets[0].createdTime;
                                 bet.id = (await placeBet(bet, process.env.APIKEY).then(
                                     (resjson) => { console.log(resjson); cancelBet(resjson.betId, process.env.APIKEY); return resjson; }
                                 )
@@ -902,25 +905,60 @@ export class Whaler {
                             // if (this.settings.autoLiquidate) {
                             //     this.placeLiquidationOrder(this.safeguards.betsPlaced[0], probStart);
                             // }
-
-                            this.checkSafeguards();
                         }
                     }
                 }
             }
         }
-
     }
 
-    
     /**
      * To be filled in, the function with routine maintenance to be called every five minutes or so.
      */
     async performMaintenance() {
 
-        //if v hasn't bet in 4 hours, slow down.
+        let maintenanceReport = "";
+        let newSpeed = this.getSpeed();
 
-        //if its ISP no-fee hours, speed up.
+
+        //if it's ISP no-fee hours, speed up.
+        if ((new Date()).getHours > 2 && (new Date()).getHours < 14) {
+
+            newSpeed = 50;
+        }
+
+        //if v hasn't bet in 4 hours, slow down.
+        try {
+            let vbets = await getUsersBets("v", 1);
+            if (vbets[0].createdTime < (new Date()).getTime() - (2 * HOUR)) {
+
+                newSpeed = this.adjustedSpeed / 4;
+            }
+        }
+        catch (e) {
+            console.log("Failed to get velocity's bets: " + e);
+        }
+
+        this.log.write(maintenanceReport);
+        this.adjustedSpeed = newSpeed;
+
+    }
+
+    /**
+     * Performs various maintenance tasks on bets we've placed after having retrieved its outcome from the server. 
+     * Record its values, sell it, calculate latency, etc.
+     * @param {*} bet 
+     */
+    async betDebrief(bet) {
+
+        //TODO: Measure and print bet latency
+        this.log.write("Bet latency: " + (bet.createdTime - this.timeOfLastBet));
+        this.safeguards.betsPlaced.unshift(bet);
+        //this.safeguards.betsByMarket[currentMarket.id].unshift(betToScan);
+        if (this.settings.autoLiquidate) {
+            this.placeLiquidationOrder(bet);
+        }
+        this.checkSafeguards();
 
     }
 
