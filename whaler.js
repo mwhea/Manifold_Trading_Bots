@@ -110,7 +110,7 @@ export class Whaler {
             console.log("Unable to load market cache, building one anew")
             this.allCachedMarkets = [];
             await this.buildCacheFromScratch();
-        }        
+        }
         if (this.allCachedMarkets.length === 0) {
             await this.buildCacheFromScratch();
             // throw new Error("market cache missing. Filling it anew");
@@ -240,7 +240,8 @@ export class Whaler {
             || this.notableUsers[mkt.creatorId] === "Spindle"
             || this.notableUsers[mkt.creatorId] === "NotMyPresident"
             || this.notableUsers[mkt.creatorId] === "Gurkenglas"
-            || this.notableUsers[mkt.creatorId] === "GeorgeVii") {
+            || this.notableUsers[mkt.creatorId] === "GeorgeVii"
+            || this.notableUsers[mkt.creatorId] === "Gigacasting") {
             searchLog += " - 0.25 (dangerous users)";
             returnVal -= .25;
         }
@@ -387,9 +388,6 @@ export class Whaler {
         else { return noobPoints / 3; }
     }
 
-
-
-
     async collectBets() {
 
         let newBetsExpectedAt = undefined;
@@ -401,9 +399,9 @@ export class Whaler {
 
         let cachingInactive = []
         let num = 0;
-        while (num<=CACHING_DURATION){
+        while (num <= CACHING_DURATION) {
             cachingInactive.push(num);
-            num+=this.getSpeed();
+            num += this.getSpeed();
         }
 
         let thisCurve = undefined;
@@ -412,6 +410,7 @@ export class Whaler {
         let attempts = [];
 
         while (true) {
+            //only used for the version with endpoint caching.
             let caughtOne = false;
             let initialNumOfBets = 2;
 
@@ -419,7 +418,7 @@ export class Whaler {
                 newBetsExpectedAt = (new Date()).getTime();
                 lastBet = (await getLatestBets(1))[0].id;
                 thisCurve = notACurve;
-            } else if (whiffs>10) {
+            } else if (whiffs > 10) {
                 thisCurve = notACurve;
                 initialNumOfBets = 2;
             } else if (!this.settings.cachingActive) {
@@ -433,7 +432,7 @@ export class Whaler {
             let i = 0;
 
             while (i < thisCurve.length && !caughtOne) {
-                
+
                 await sleep(5);
 
                 // If enough time has elapsed, add a new request to the queue
@@ -467,7 +466,7 @@ export class Whaler {
                                 penultimateBet = lastBet;
                                 lastBet = theseBets[0].id;
                                 if (this.settings.cachingActive) {
-                                    this.log.write("Timing was off by " + (thisCurve[i] + " milliseconds");
+                                    this.log.write("Timing was off by " + thisCurve[i] + " milliseconds");
                                     newBetsExpectedAt = thisAttempt.sentTime + CACHING_DURATION;
                                     caughtOne = true;
                                     attempts = [];
@@ -484,17 +483,16 @@ export class Whaler {
                 //on no new bets in 15 secs:
                 newBetsExpectedAt += CACHING_DURATION;
             }
-                
+
             if (!caughtOne) {
-                
+
                 this.log.write("....");
-                if((new Date()).getTime()>this.timeOfLastBackup+30*MINUTE){
+                if ((new Date()).getTime() > this.timeOfLastBackup + 30 * MINUTE) {
                     this.saveCache();
                     this.timeOfLastBackup=(new Date()).getTime();
                 }
             }
         }
-
     }
 
 
@@ -505,17 +503,8 @@ export class Whaler {
     async detectChanges(nb) {
 
         let changedMarkets = [];
-        let changedMarketsFull = [];
 
         let newBets = nb;
-
-        // try {
-        //     newBets = await getLatestBets(3);
-        // }
-        // catch (e) {
-        //     console.log(e);
-        //     return;
-        // }
 
         let indexOfLastScan = undefined;
 
@@ -527,7 +516,7 @@ export class Whaler {
 
         if (indexOfLastScan === undefined) {
             try {
-                newBets = await getLatestBets(200);
+                newBets = await getLatestBets(500);
                 for (let i = 0; i < newBets.length - 1; i++) {
                     if (newBets[i].id === this.lastScannedBet) {
                         indexOfLastScan = i;
@@ -538,7 +527,10 @@ export class Whaler {
                 }
             }
             catch (e) {
-                this.log.write("NewBets collection RERUN failed");
+                this.log.write("NewBets collection RERUN failed (id of lastscannedbet: " + this.lastScannedBet + ")");
+                for (let j in newBets) {
+                    //if bug persists, sublog a list of collected newbets.
+                }
                 console.log(e);
                 return;
             }
@@ -567,9 +559,6 @@ export class Whaler {
                         this.allCachedMarkets.push(mkt);
                         this.allCachedMarkets = this.sortListById(this.allCachedMarkets);
                         parentMarket = mkt;
-                        //if we haven't already cached a copy of the market, we may not have time to query the API to get full market data
-                        //quickdraw() runs some pared-down heuristics to determine whether to place a bet.
-                        //this.quickdraw(newBets[i]);
                     }
                     else {
                         parentMarket.bets.unshift(newBets[i]);
@@ -577,9 +566,8 @@ export class Whaler {
                     }
 
                     //if you haven't already marked this market as having received new bets in this run, add it.
-                    if (changedMarkets.find((e) => { e === newBets[i].contractId }) === undefined) {
-                        changedMarkets.push(newBets[i].contractId);
-                        changedMarketsFull.push(parentMarket);
+                    if (changedMarkets.find((e) => { e.id === newBets[i].contractId }) === undefined) {
+                        changedMarkets.push(parentMarket);
                         this.ellipsesDisplay = 0;
                     }
                 }
@@ -595,7 +583,7 @@ export class Whaler {
             this.ellipsesDisplay++;
         }
 
-        this.huntWhales(changedMarketsFull);
+        this.huntWhales(changedMarkets);
 
     }
 
@@ -850,7 +838,7 @@ export class Whaler {
 
                     this.log.write("should I bet? | alpha sought\t| noobScore\t| bettorskill\t| trustworthy?\t| buyingPower");
                     this.log.write(roundToPercent(shouldPlaceBet) + " \t\t| "
-                        + roundToPercent(betAlpha) + "  \t\t| "
+                        + roundToPercent(betAlpha) + " \t\t| "
                         + roundToPercent(aggregateBets[i].noobScore) + " \t\t| "
                         + roundToPercent(aggregateBets[i].bettorAssessment) + " \t\t| "
                         + roundToPercent(aggregateBets[i].trustworthiness) + " \t\t| "
@@ -874,6 +862,7 @@ export class Whaler {
                         else {
                             bet.outcome = "NO";
                             bet.limitProb = currentMarket.probability - recoveredSpan;
+
                         }
                         bet.limitProb = roundToPercent(bet.limitProb);
 
@@ -994,7 +983,7 @@ export class Whaler {
         let unprocessedMarkets = [];
         let markets = await getAllMarkets();
 
-        for (let i = 0; i < markets.length ; i++) {
+        for (let i = 0; i < markets.length; i++) {
 
             if ((markets[i].outcomeType === "BINARY" || markets[i].outcomeType === "PSEUDO_NUMERIC") && markets[i].isResolved == false) {
 
@@ -1023,7 +1012,7 @@ export class Whaler {
      * (This is more lightweight than the full bet list for medium-term storage.)
      * @param {*} mkt 
      */
-    setUniqueTraders(mkt){
+    setUniqueTraders(mkt) {
 
         mkt.uniqueTraders = [];
 
@@ -1054,6 +1043,9 @@ export class Whaler {
     }
 
 
+    /**
+     * Creates a copy of the market cache (we don't want to lose that hard work in the event of a save error, etc.)
+     */
     async backupCache() {
         try {
             renameSync("/temp/markets.json", "/temp/marketsBACKUP" + dateFormat(undefined, 'yyyy-mm-d_h-MM_TT') + ".json");
@@ -1067,7 +1059,7 @@ export class Whaler {
      * Saves the market cache to a file so we don't have to download thousands of markets every time we start the program.
      */
     async saveCache() {
-      
+
         for (let i in this.allCachedMarkets) {
             this.allCachedMarkets[i].bets = [];
         }
@@ -1081,7 +1073,6 @@ export class Whaler {
      */
     stripFullMarket(mkt) {
 
-        console.log(mkt.question)
         let cmkt = mkt;
         cmkt.uniqueTraders = [];
 
