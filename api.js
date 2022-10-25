@@ -3,11 +3,11 @@ import fetch from 'node-fetch'
 
 const API_URL = process.env.APIURL; 
 
-export const getLatestBets = (num) => {
+export const getLatestBets = async (num) => {
   try {
-    return fetch(`${API_URL}/bets?limit=${num}`).then(
-      (res) => res.json()
-    )
+    let result = await fetch(`${API_URL}/bets?limit=${num}`)
+    result = result.json()
+    return result;
   }
   catch (e) {
     console.log(e);
@@ -15,13 +15,13 @@ export const getLatestBets = (num) => {
   }
 }
 
-export const getUserById = async  (id) => {
+export const getUserById = async (id) => {
   return fetch(`${API_URL}/user/by-id/${id}`).then(
     (res) => res.json()
   );
 }
 
-export const getUsersBets = (username, bets) => {
+export const getUsersBets = async (username, bets) => {
   let url = `${API_URL}/bets?username=${username}`;
   if (bets!==undefined){
     url+=`&limit=${bets}`;
@@ -31,13 +31,13 @@ export const getUsersBets = (username, bets) => {
   )
 }
 
-export const getAllUsers = () => {
+export const getAllUsers = async () => {
   return fetch(`${API_URL}/users`).then(
     (res) => res.json()
   )
 }
 
-export const getMe = (key) => {
+export const getMe = async (key) => {
   return fetch(`${API_URL}/me`, {
     headers: {
       Authorization: `Key ${key}`
@@ -118,4 +118,8 @@ export const getFullMarket = async (id) => {
         Authorization: `Key ${key}`,
       },
     }).then((res) => res.json())
+  }
+
+  export const betAndCancel = (betId, key) => {
+
   }

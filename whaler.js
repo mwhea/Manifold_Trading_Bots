@@ -449,7 +449,14 @@ export class Whaler {
 
                     if (attempts[j].latestBets.PromiseStatus !== "pending") {
                         let thisAttempt = attempts.shift();
-                        let theseBets = await thisAttempt.latestBets;
+
+                        let theseBets = undefined;
+                        try {
+                            theseBets = await thisAttempt.latestBets;
+                        }
+                        catch (e) {
+                            console.log(e);
+                        }
                         if (theseBets === undefined) {
                             whiffs++;
                         }
@@ -560,10 +567,9 @@ export class Whaler {
                         this.allCachedMarkets = this.sortListById(this.allCachedMarkets);
                         parentMarket = mkt;
                     }
-                    else {
-                        parentMarket.bets.unshift(newBets[i]);
-                        parentMarket.probability = newBets[i].probAfter;
-                    }
+                    parentMarket.bets.unshift(newBets[i]);
+                    parentMarket.probability = newBets[i].probAfter;
+                    
 
                     //if you haven't already marked this market as having received new bets in this run, add it.
                     if (changedMarkets.find((e) => { e.id === newBets[i].contractId }) === undefined) {
@@ -605,22 +611,28 @@ export class Whaler {
 
             let currentMarket = marketsToInspect[i];
             if (currentMarket.outcomeType === "PSEUDO_NUMERIC") {
-                currentMarket.probability = currentMarket.bets[0].probAfter;
+                if (currentMarket.bets.length > 0) {
+                    currentMarket.probability = currentMarket.bets[0].probAfter;
+                }
+                else {
+                    currentMarket.probability = undefined;
+                }
             }
 
-            try {
-                betToScan = currentMarket.bets[betIndex];
-            }
-            catch (e) {
-                console.log(e);
-                console.log(currentMarket);
-            }
+            betToScan = currentMarket.bets[betIndex];
+
 
             let time = new Date();
             let inactivityCutoff = time.getDate() - (1000 * 60 * 5);
 
             //we'll need to record the present state of the market
-            let probFinal = betToScan.probAfter;
+            let probFinal = undefined;
+            try {
+                probFinal = betToScan.probAfter;
+            }
+            catch (e) {
+                console.log(e);
+            }
 
             //analyzing a bet history is difficult to do programmatically
             //to help, we're converting it into an intermediary: "aggregate bets" 
