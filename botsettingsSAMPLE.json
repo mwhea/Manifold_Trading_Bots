@@ -1,0 +1,27 @@
+{
+    "attritionTrader": {
+        "desiredAlpha": 0.6,
+        "mode" : "bet",
+        "active" : true,
+        "runEvery": null
+    },
+    "whaler": {
+        "desiredAlpha": 0.6,
+        "mode" : "bet",
+        "active" : true,
+        "runEvery": 50,
+        "autoSelloff": true,
+        "cachingActive":false
+    },
+    "streaker": {
+        "active" : false,
+        "runEvery": null,
+        "accountsToMaintain": [
+            "Botlab"
+        ]
+    },
+    "velocitySlayer":{
+        "active" : false,
+        "runEvery": null
+    }
+} 

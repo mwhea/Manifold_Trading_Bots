@@ -92,7 +92,7 @@ export class Whaler {
     }
 
     getSpeed() {
-        return this.settings.speed;
+        return this.settings.runEvery;
     }
 
     /**
