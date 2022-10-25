@@ -108,9 +108,9 @@ export class Whaler {
             const { mtime, ctime } = statSync(new URL('/temp/markets.json', import.meta.url))
 
             this.log.write(`Cache age is ${(((new Date()).getTime() - mtime) / 1000) / 60} minutes.`);
-            if (mtime < (new Date()).getTime() - (2 * HOUR)) {
-                this.log.write(mtime + " < " + (new Date()).getTime() + " - " + (2 * HOUR));
-                await this.updateCache();
+            if (mtime < (new Date()).getTime() - (4 * HOUR)) {
+                this.log.write(mtime + " < " + (new Date()).getTime() + " - " + (30 * MINUTE));
+                await this.updateCache(mtime);
             }
             else {
                 this.log.write("Cache up to date");
@@ -940,6 +940,7 @@ export class Whaler {
                         if (betDifference < 0) {
                             bet.outcome = "YES";
                             bet.limitProb = currentMarket.probability + recoveredSpan;
+                            // bet.amount = (currentMarket.pool.YES/(currentMarket.pool.YES+currentMarket.pool.NO)) * betDifference
                         }
                         else {
                             bet.outcome = "NO";
@@ -1204,7 +1205,7 @@ export class Whaler {
     /**
      * Scan the market cache for markets likely to have changed during periods of program inactivity, and check the server for updates to them.
      */
-    async updateCache() {
+    async updateCache(sinceTime) {
 
         this.log.write("Updating Stale Cache:\n");
 
@@ -1220,7 +1221,8 @@ export class Whaler {
                 this.log.sublog("Adding market" + allmkts[i].question);
             }
             else if (this.allCachedMarkets[i].id === allmkts[i].id) {
-                if (this.allCachedMarkets[i].uniqueTraders.length < UT_THRESHOLD) {
+                if (this.allCachedMarkets[i].uniqueTraders.length < UT_THRESHOLD && allmkts[i].lastUpdatedTime>sinceTime) {
+                    //you could also try using allmkts[i].volume7Days as the while condition
                     try {
                         let reportString = "Updating market " + i + " - " + allmkts[i].question + ": " + this.allCachedMarkets[i].uniqueTraders.length;
                         this.allCachedMarkets[i] = this.cachifyMarket(await getFullMarket(allmkts[i].id));
