@@ -65,6 +65,7 @@ export class Whaler {
 
         this.notableUsers = readFile(new URL('./notableUsers.json', import.meta.url));
 
+        //currently unused, but I may later add a new market detector, which will make use of them once again.
         this.currentMarkets = undefined;
         this.lastMarkets = undefined;
 
@@ -555,7 +556,8 @@ export class Whaler {
 
                 if (!isUnfilledLimitOrder(newBets[i])
                     && !newBets[i].isRedemption
-                    && !(this.notableUsers[newBets[i].userId] === "v")
+                   // && !(this.notableUsers[newBets[i].userId] === "v"
+                    
                 ) {
                     let parentMarket = this.allCachedMarkets.find((m) => { return (newBets[i].contractId === m.id); });
                     if (parentMarket === undefined) {
@@ -623,7 +625,6 @@ export class Whaler {
             }
 
             betToScan = currentMarket.bets[betIndex];
-
 
             let time = new Date();
             let inactivityCutoff = time.getDate() - (1000 * 60 * 5);
@@ -728,8 +729,9 @@ export class Whaler {
                 //we can take its probafter as the "baseline price" prior to the last flurry of betting
                 probStart = betToScan.probAfter;
 
-                //this is 
+                //this is where we collect up-to-date info about outgoing bets of ours: when they show up in the bet stream.
                 if (this.notableUsers[betToScan.userId] === "me" && !betToScan.isRedemption) {
+
                     let alreadyDetected = false;
                     for (let i in this.safeguards.betsPlaced) {
                         if (this.safeguards.betsPlaced[i].id === betToScan.id) {
@@ -798,7 +800,7 @@ export class Whaler {
                 aggregateBets[i].bettorAssessment = this.assessTraderSkill(bettor, aggregateBets[i].constituentBets, currentMarket); //returns value from -1 to +1
                 if (aggregateBets[i].noobScore === 1 && aggregateBets[i].bettorAssessment > 1) { aggregateBets[i].bettorAssessment /= 3.5; }
 
-                aggregateBets[i].constituentBets = [];
+                //aggregateBets[i].constituentBets = [];
                 console.log(aggregateBets[i]);
 
                 let betDifference = 0
