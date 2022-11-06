@@ -65,10 +65,6 @@ export class Whaler {
 
         this.notableUsers = readFile(new URL('./notableUsers.json', import.meta.url));
 
-        //currently unused, but I may later add a new market detector, which will make use of them once again.
-        this.currentMarkets = undefined;
-        this.lastMarkets = undefined;
-
         this.cachedUsers = [];
         this.allUsers = [];
 
@@ -116,7 +112,6 @@ export class Whaler {
         }
         if (this.allCachedMarkets.length === 0) {
             await this.buildCacheFromScratch();
-            // throw new Error("market cache missing. Filling it anew");
         }
 
         this.allUsers = getAllUsers();
@@ -139,7 +134,8 @@ export class Whaler {
         let start = 0;
         let end = list.length - 1;
         let middle;
-        let searchLog = "ID holder wasn't found";
+
+        let searchLog = "ID holder wasn't found\n";
 
         while (start <= end) {
             middle = Math.floor((start + end) / 2);
@@ -159,6 +155,18 @@ export class Whaler {
         }
 
         // key wasn't found. Print the environs it searched in to ensure the search is working properly.
+
+        if (list[0].profitCached !== undefined) {
+            this.log.write("finding user");
+        }
+        else if (list[0].closeTime !== undefined) {
+            this.log.write("finding market");
+        }
+        else {
+            this.log.write("ERROR: Attempting to search a bad array");
+            console.log(list[0]);
+        }
+        this.log.write("list length: " + end);
 
         searchLog += ("Immediate Vicinity: " + list[end - 1].id + ", " + list[end].id + ", " + list[end + 1].id);
         this.log.write(searchLog);
@@ -249,7 +257,7 @@ export class Whaler {
         else if (this.notableUsers[mkt.creatorId] === "Spindle"
             || this.notableUsers[mkt.creatorId] === "Gurkenglas"
             || this.notableUsers[mkt.creatorId] === "GeorgeVii"
-            || this.notableUsers[mkt.creatorId] === "Gigacasting"){
+            || this.notableUsers[mkt.creatorId] === "Gigacasting") {
             searchLog += " - 0.25 (dangerous creators)";
             returnVal -= .25;
         }
@@ -396,6 +404,10 @@ export class Whaler {
         else { return noobPoints / 3; }
     }
 
+    /**
+     * this method collects new bets from the server's /bets API endpoint. 
+     * Manifold has turned on and off 15-second API caching a couple times, so this has two modes available.
+     */
     async collectBets() {
 
         let newBetsExpectedAt = undefined;
@@ -404,7 +416,10 @@ export class Whaler {
 
         let notACurve = [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000];
         let bellCurve = [-3000, -1000, -250, -100, -50, -35, -20, -12, -5, 0, 5, 12, 20, 35, 50, 100, 250, 1000, 3000];
-
+        let extraOffset = -50;
+        for (let i in bellCurve) {
+            bellCurve[i] -= extraOffset;
+        }
         let cachingInactive = []
         let num = 0;
         while (num <= CACHING_DURATION) {
@@ -503,14 +518,11 @@ export class Whaler {
 
                 this.log.write("....");
                 if ((new Date()).getTime() > this.timeOfLastBackup + 30 * MINUTE) {
-                    this.saveCache();
                     this.performMaintenance();
-                    this.timeOfLastBackup = (new Date()).getTime();
                 }
             }
         }
     }
-
 
     /**
      * This function scans the /bets endpoint for new bets coming in.
@@ -561,8 +573,8 @@ export class Whaler {
 
                 if (!isUnfilledLimitOrder(newBets[i])
                     && !newBets[i].isRedemption
-                   // && !(this.notableUsers[newBets[i].userId] === "v"
-                    
+                    // && !(this.notableUsers[newBets[i].userId] === "v"
+
                 ) {
                     let parentMarket = this.findIdHolderInList(newBets[i].contractId, this.allCachedMarkets);
                     if (parentMarket === undefined) {
@@ -579,7 +591,7 @@ export class Whaler {
                     }
                     parentMarket.bets.unshift(newBets[i]);
                     parentMarket.probability = newBets[i].probAfter;
-                    
+
 
                     //if you haven't already marked this market as having received new bets in this run, add it.
                     if (changedMarkets.find((e) => { e.id === newBets[i].contractId }) === undefined) {
@@ -615,7 +627,7 @@ export class Whaler {
      * lowest to highest prices they bought at during the last period of activity.
      * limited to the range of the total price movement observed
      */
-    async aggregateBets(bets){
+    async aggregateBets(bets) {
         let currentMarket = this.findIdHolderInList(bets[0].contractId, this.allCachedMarkets);
 
         let betToScan = {};
@@ -715,7 +727,7 @@ export class Whaler {
         }
 
         let probStart = undefined;
-        if (betToScan !== undefined)  {
+        if (betToScan !== undefined) {
             //now that we've collected a bet that does't qualify for analysis, 
             //we can take its probafter as the "baseline price" prior to the last flurry of betting
             probStart = betToScan.probAfter;
@@ -734,7 +746,7 @@ export class Whaler {
                 }
             }
         }
-        else{
+        else {
             //if we've run out of bets, just use the probBefore of the oldest
             probStart = bets[bets.length - 1].probBefore;
         }
@@ -813,7 +825,7 @@ export class Whaler {
 
 
         }
-        
+
         this.log.write("-----");
         this.log.write(currentMarket.question + ": " + dToP(probStart) + " -> " + dToP(currentMarket.probability));
 
@@ -924,14 +936,19 @@ export class Whaler {
                         bet.limitProb = roundToPercent(bet.limitProb);
 
                         if (this.settings.mode === "dry-run" || this.settings.mode === "dry-run-w-mock-betting" || this.settings.mode === "bet") {
-                            this.log.write("Betting against " + thisAgg.bettorName + " (" + thisAgg.bettorAssessment + ") on " + currentMarket.question + " (" + currentMarket.probability + ")");
+                            this.log.write("Betting against " + thisAgg.bettorName + " (" + thisAgg.bettorAssessment + ") on " + currentMarket.question + " (" + currentMarket.probability + "at " + (new Date()).getTime() + " milliseconds)");
                             console.log(bet);
                             let myBetId = undefined;
 
                             if (this.settings.mode === "bet") {
                                 this.timeOfLastBet = thisAgg.constituentBets[0].createdTime;
                                 bet.id = (await placeBet(bet, process.env.APIKEY).then(
-                                    (resjson) => { console.log(resjson); cancelBet(resjson.betId, process.env.APIKEY); return resjson; }
+                                    (resjson) => {
+                                        this.log.write("bet placed: " + resjson.betId);
+                                        console.log(resjson);
+                                        cancelBet(resjson.betId, process.env.APIKEY);
+                                        return resjson;
+                                    }
                                 )
                                 ).betId;
                                 // if you put the liquidation order in a then, you can reduce some latency
@@ -955,7 +972,7 @@ export class Whaler {
         }
     }
 
-    async isUserOnline(username){
+    async isUserOnline(username) {
         try {
             let vbets = await getUsersBets(username, 1);
             if (vbets[0].createdTime < (new Date()).getTime() - (2 * HOUR)) {
@@ -972,33 +989,36 @@ export class Whaler {
      */
     async performMaintenance() {
 
+        this.saveCache();
+        this.timeOfLastBackup = (new Date()).getTime();
+
         let maintenanceReport = "Maintenance Report: ";
         let newSpeed = this.getSpeed();
 
         //if it's ISP no-fee hours, speed up.
         if ((new Date()).getHours() > 2 && (new Date()).getHours() < 14) {
             newSpeed = 100;
-            maintenanceReport += `Base speed: ${newSpeed} (Cheap internet, using fast base rate)`;
+            maintenanceReport += `Base speed: ${newSpeed} (Cheap internet, using fast base rate) ==> `;
         }
 
-        let botsOnline = {"v": await this.isUserOnline("v"), "acc": await this.isUserOnline("acc")};
+        let botsOnline = { "v": await this.isUserOnline("v"), "acc": await this.isUserOnline("acc") };
 
         //if v hasn't bet in 4 hours, slow down.
-        if(botsOnline.acc===true && botsOnline.v===false){
+        if (botsOnline.acc === true && botsOnline.v === false) {
             newSpeed = 500;
         }
-        else if(botsOnline.acc===false && botsOnline.v===false){
+        else if (botsOnline.acc === false && botsOnline.v === false) {
             newSpeed = 100;
         }
-        else if(botsOnline.v===true){
+        else if (botsOnline.v === true) {
             newSpeed /= 4;
         }
 
-        maintenanceReport += ` ==> Adjusted Speed: ${newSpeed} `;
+        maintenanceReport += `Adjusted Speed: ${newSpeed} `;
         maintenanceReport += "( Bots online: [ ";
-        if(botsOnline.acc===true){ maintenanceReport += "acc";}
-        if(botsOnline.v===true && botsOnline.acc===true) {maintenanceReport += ", ";}
-        if(botsOnline.v===true){ maintenanceReport += "v";}
+        if (botsOnline.acc === true) { maintenanceReport += "acc"; }
+        if (botsOnline.v === true && botsOnline.acc === true) { maintenanceReport += ", "; }
+        if (botsOnline.v === true) { maintenanceReport += "v"; }
         maintenanceReport += " ] )";
 
         this.log.write(maintenanceReport);
@@ -1115,8 +1135,8 @@ export class Whaler {
 
         }
         this.sortListById(this.allCachedMarkets);
-        await this.backupCache();
         await this.saveCache();
+        await this.backupCache();
     }
 
     /**
