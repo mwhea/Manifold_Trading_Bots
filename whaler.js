@@ -242,12 +242,15 @@ export class Whaler {
             returnVal -= .25;
         }
         if (this.notableUsers[mkt.creatorId] === "Yev"
-            || this.notableUsers[mkt.creatorId] === "Spindle"
-            || this.notableUsers[mkt.creatorId] === "NotMyPresident"
+            || this.notableUsers[mkt.creatorId] === "NotMyPresident") {
+            searchLog += " - 0.66 (extremely dangerous creators)";
+            returnVal -= .66;
+        }
+        else if (this.notableUsers[mkt.creatorId] === "Spindle"
             || this.notableUsers[mkt.creatorId] === "Gurkenglas"
             || this.notableUsers[mkt.creatorId] === "GeorgeVii"
-            || this.notableUsers[mkt.creatorId] === "Gigacasting") {
-            searchLog += " - 0.25 (dangerous users)";
+            || this.notableUsers[mkt.creatorId] === "Gigacasting"){
+            searchLog += " - 0.25 (dangerous creators)";
             returnVal -= .25;
         }
 
@@ -561,7 +564,7 @@ export class Whaler {
                    // && !(this.notableUsers[newBets[i].userId] === "v"
                     
                 ) {
-                    let parentMarket = this.allCachedMarkets.find((m) => { return (newBets[i].contractId === m.id); });
+                    let parentMarket = this.findIdHolderInList(newBets[i].contractId, this.allCachedMarkets);
                     if (parentMarket === undefined) {
 
                         let mkt = this.stripFullMarket(await getFullMarket(newBets[i].contractId));
@@ -725,7 +728,7 @@ export class Whaler {
             let probStart = undefined;
             if (betToScan === undefined) {
                 //if we've run out of bets, just use the probBefore of the oldest
-                probStart = betToScan = currentMarket.bets[currentMarket.bets.length - 1].probBefore;
+                probStart = currentMarket.bets[currentMarket.bets.length - 1].probBefore;
             } else {
                 //now that we've collected a bet that does't qualify for analysis, 
                 //we can take its probafter as the "baseline price" prior to the last flurry of betting
