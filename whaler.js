@@ -125,6 +125,8 @@ export class Whaler {
 
         this.allUsers = this.sortListById(await this.allUsers);
 
+        this.performMaintenance();
+
     }
 
     /**
@@ -499,7 +501,7 @@ export class Whaler {
                 this.log.write("....");
                 if ((new Date()).getTime() > this.timeOfLastBackup + 30 * MINUTE) {
                     this.saveCache();
-                    //this.performMaintenance();
+                    this.performMaintenance();
                     this.timeOfLastBackup = (new Date()).getTime();
                 }
             }
@@ -914,32 +916,52 @@ export class Whaler {
         }
     }
 
+    async isUserOnline(username){
+        try {
+            let vbets = await getUsersBets(username, 1);
+            if (vbets[0].createdTime < (new Date()).getTime() - (2 * HOUR)) {
+                return false;
+            }
+        }
+        catch (e) {
+            console.log(`Failed to get ${username}'s bets: ${r}. Defaulting to 'online'.`);
+        }
+        return true;
+    }
     /**
      * To be filled in, the function with routine maintenance to be called every five minutes or so.
      */
     async performMaintenance() {
 
-        let maintenanceReport = "";
+        let maintenanceReport = "Maintenance Report: ";
         let newSpeed = this.getSpeed();
 
-
         //if it's ISP no-fee hours, speed up.
-        if ((new Date()).getHours > 2 && (new Date()).getHours < 14) {
-
-            newSpeed = 50;
+        if ((new Date()).getHours() > 2 && (new Date()).getHours() < 14) {
+            newSpeed = 100;
+            maintenanceReport += `Base speed: ${newSpeed} (Cheap internet, using fast base rate)`;
         }
+
+        let botsOnline = {"v": await this.isUserOnline("v"), "acc": await this.isUserOnline("acc")};
+        console.log(botsOnline);
 
         //if v hasn't bet in 4 hours, slow down.
-        try {
-            let vbets = await getUsersBets("v", 1);
-            if (vbets[0].createdTime < (new Date()).getTime() - (2 * HOUR)) {
+        if(botsOnline.acc===true && botsOnline.v===false){
+            newSpeed = 500;
+        }
+        else if(botsOnline.acc===false && botsOnline.v===false){
+            newSpeed = 100;
+        }
+        else if(botsOnline.v===true){
+            newSpeed /= 4;
+        }
 
-                newSpeed = this.adjustedSpeed / 4;
-            }
-        }
-        catch (e) {
-            console.log("Failed to get velocity's bets: " + e);
-        }
+        maintenanceReport += ` ==> Adjusted Speed: ${newSpeed} `;
+        maintenanceReport += "( Bots online: [ ";
+        if(botsOnline.acc===true){ maintenanceReport += "acc";}
+        if(botsOnline.v===true && botsOnline.acc===true) {maintenanceReport += ", ";}
+        if(botsOnline.v===true){ maintenanceReport += "v";}
+        maintenanceReport += " ] )";
 
         this.log.write(maintenanceReport);
         this.adjustedSpeed = newSpeed;
