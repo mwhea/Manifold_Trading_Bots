@@ -950,7 +950,17 @@ export class Whaler {
                                     (resjson) => {
                                         this.log.write("bet placed: " + resjson.betId);
                                         console.log(resjson);
-                                        cancelBet(resjson.betId, process.env.APIKEY);
+                                        let tryAgainIn = 10;
+                                        while (tryAgainIn != 0) {
+                                            try {
+                                                cancelBet(resjson.betId, process.env.APIKEY);
+                                                tryAgainIn = 0;
+                                            }
+                                            catch (e) {
+                                                this.log.write("Failed to cancel bet: " + e.message);
+                                                tryAgainIn *= 2;
+                                            }
+                                        }
                                         return resjson;
                                     }
                                 )
