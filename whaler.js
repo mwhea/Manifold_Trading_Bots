@@ -1,31 +1,20 @@
 import {
-    getAllMarkets,
     getUserById,
     getFullMarket,
     placeBet,
     cancelBet,
     getLatestBets,
-    getAllUsers,
-    getMarkets,
     getUsersBets
 } from './api.js';
-import {
-    createWriteStream,
-    createReadStream,
-    rename,
-    renameSync,
-    statSync
-} from 'fs';
-import dateFormat, { masks } from "dateformat";
 
-import fetch from 'node-fetch'
+import {
+    readFile
+} from 'fs/promises';
+
 import { Logger } from "./Logger.js";
+import { CacheManager } from "./CacheManager.js";
 
 import 'dotenv/config'
-import {
-    readFile,
-    writeFile
-} from 'fs/promises';
 
 import {
     dToP,
@@ -34,17 +23,13 @@ import {
     isUnfilledLimitOrder,
     sleep
 } from './utility_functions.js';
-import { time } from 'console';
 
-const SECOND = 1000;
-const MINUTE = 60 * SECOND;
-const HOUR = 60 * MINUTE;
-const DAY = 24 * MINUTE;
+//Constants
+import {SECOND, MINUTE, HOUR, DAY} from "./timeWords.js";
+import { UT_THRESHOLD } from "./CacheManager.js"
+
 const MIN_P_MOVEMENT = .0375;
-
-const UT_THRESHOLD = 20;
 const CACHING_DURATION = 15000;
-
 const OUTGOING_LIMIT = 1000;
 //speeds: (run every n milliseconds)
 const HYPERDRIVE = 10;
@@ -60,16 +45,12 @@ export class Whaler {
 
     constructor(whalerSettings) {
         this.log = new Logger("whaler");
+        this.cache = new CacheManager(this.log);
 
         this.settings = whalerSettings;
         this.adjustedSpeed = this.settings.speed;
 
         this.notableUsers = readFile(new URL('./notableUsers.json', import.meta.url));
-
-        this.cachedUsers = [];
-        this.allUsers = [];
-
-        this.recentMarkets = [];
 
         this.lastScannedBet = undefined;
 
@@ -87,12 +68,6 @@ export class Whaler {
 
         this.limitOrderQueue = [];
 
-        this.allCachedMarkets = [];
-
-    }
-
-    getSpeed() {
-        return this.adjustedSpeed;
     }
 
     /**
@@ -100,105 +75,18 @@ export class Whaler {
      * so this method is meant to be called after the constuctor to perform any additional construction making used of asynchronous functions
      */
     async additionalConstruction() {
+
+        this.cache.createCaches();
         this.notableUsers = JSON.parse(await this.notableUsers);
-        try {
-            this.allCachedMarkets = await readFile(new URL('/temp/markets.json', import.meta.url));
-            this.allCachedMarkets = JSON.parse(await this.allCachedMarkets);
-
-            const { mtime, ctime } = statSync(new URL('/temp/markets.json', import.meta.url))
-
-            this.log.write(`Cache age is ${(((new Date()).getTime() - mtime) / 1000) / 60} minutes.`);
-            if (mtime < (new Date()).getTime() - (4 * HOUR)) {
-                this.log.write(mtime + " < " + (new Date()).getTime() + " - " + (30 * MINUTE));
-                await this.updateCache(mtime);
-            }
-            else {
-                this.log.write("Cache up to date");
-            }
-
-        }
-        catch (e) {
-            console.log(e)
-            console.log("Unable to load market cache, building one anew")
-            this.allCachedMarkets = [];
-            await this.buildCacheFromScratch();
-        }
-        if (this.allCachedMarkets.length === 0) {
-            await this.buildCacheFromScratch();
-        }
-
-        this.allUsers = getAllUsers();
 
         this.lastScannedBet = (await getLatestBets(1))[0].id;
-
-        this.allUsers = this.sortListById(await this.allUsers);
-
         this.performMaintenance();
 
     }
 
-    /**
-     * Binary search which can be used on either the locally stored list of markets or the list of users
-     * @param {*} id 
-     * @param {*} list 
-     * @returns the sought-after object
-     */
-    findIdHolderInList(id, list) {
-        let start = 0;
-        let end = list.length - 1;
-        let middle;
-
-        let searchLog = "ID holder wasn't found\n";
-
-        while (start <= end) {
-            middle = Math.floor((start + end) / 2);
-
-            if (list[middle].id === id) {
-                // found the key
-                return list[middle];
-            } else if (list[middle].id < id) {
-                // continue searching to the right
-                searchLog += "cachedId " + "<" + " id\n";
-                start = middle + 1;
-            } else {
-                // search searching to the left
-                searchLog += "cachedId " + ">" + " id\n";
-                end = middle - 1;
-            }
-        }
-
-        // key wasn't found. Print the environs it searched in to ensure the search is working properly.
-
-        if (list[0].profitCached !== undefined) {
-            this.log.write("finding user");
-        }
-        else if (list[0].closeTime !== undefined) {
-            this.log.write("finding market");
-        }
-        else {
-            this.log.write("ERROR: Attempting to search a bad array");
-            console.log(list[0]);
-        }
-        this.log.write("list length: " + end);
-
-        searchLog += ("Immediate Vicinity: " + list[end - 1].id + ", " + list[end].id + ", " + list[end + 1].id);
-        this.log.write(searchLog);
-        return undefined;
-    }
-
-    /**
-     * Sort a list by id, works on any array whose objects contain an "id" field.
-     * @param {*} list 
-     * @returns the sorted array
-     */
-    sortListById(list) {
-        list = list.sort((a, b) => {
-            if (a.id < b.id) { return -1; }
-            if (a.id > b.id) { return 1; }
-            return 0;
-        });
-        return list;
-    }
+    getSpeed() {
+        return this.adjustedSpeed;
+    } 
 
     /**
      * This method evaluates the likelihood that a given market is not entirely on the level. 
@@ -589,17 +477,13 @@ export class Whaler {
                     // && !(this.notableUsers[newBets[i].userId] === "v"
 
                 ) {
-                    let parentMarket = this.findIdHolderInList(newBets[i].contractId, this.allCachedMarkets);
+                    let parentMarket = this.cache.getMarketById(newBets[i].contractId);
                     if (parentMarket === undefined) {
 
-                        let mkt = this.stripFullMarket(await getFullMarket(newBets[i].contractId));
+                        this.cache.cacheMarket(await getFullMarket(newBets[i].contractId));
+                        let mkt = this.cache.findIdHolderInList(newBets[i].contractId, this.cache.markets);
                         this.log.write("======");
                         this.log.write("New Market: " + mkt.question + ": " + dToP(newBets[i].probAfter));
-
-                        mkt.uniqueTraders = [];
-                        mkt.uniqueTraders.unshift(newBets[i].userId);
-                        this.allCachedMarkets.push(mkt);
-                        this.allCachedMarkets = this.sortListById(this.allCachedMarkets);
                         parentMarket = mkt;
                     }
                     parentMarket.bets.unshift(newBets[i]);
@@ -641,7 +525,7 @@ export class Whaler {
      * limited to the range of the total price movement observed
      */
     async aggregateBets(bets) {
-        let currentMarket = this.findIdHolderInList(bets[0].contractId, this.allCachedMarkets);
+        let currentMarket = this.cache.getMarketById(bets[0].contractId);
 
         let betToScan = {};
         let betIndex = 0;
@@ -703,12 +587,10 @@ export class Whaler {
                         constituentBets: []
                     };
 
-                    thisAggregate.bettor = this.findIdHolderInList(betToScan.userId, this.allUsers);
+                    thisAggregate.bettor = this.cache.getUserById(betToScan.userId);
                     if (thisAggregate.bettor === undefined) {
                         //TODO: assign a noobscore and do this asynchronously
-                        this.allUsers.push(await getUserById(betToScan.userId));
-                        this.allUsers = this.sortListById(this.allUsers);
-                        thisAggregate.bettor = this.findIdHolderInList(betToScan.userId, this.allUsers);
+                        thisAggregate.bettor = await this.cache.addUser(betToScan.userId);
                     }
 
                     aggregateBets.push(thisAggregate);
@@ -1011,8 +893,8 @@ export class Whaler {
      */
     async performMaintenance() {
 
-        this.backupCache();
-        this.saveCache();
+        this.cache.backupCache();
+        this.cache.saveCache();
         this.timeOfLastBackup = (new Date()).getTime();
 
         let maintenanceReport = "Maintenance Report: ";
@@ -1085,7 +967,7 @@ export class Whaler {
         this.log.write(report);
         //this.log.close();
         if (outgoingCash > OUTGOING_LIMIT) {
-            await this.saveCache();
+            await this.cache.saveCache();
             throw new Error("Exceeded outgoing cash limit");
         }
 
@@ -1131,188 +1013,5 @@ export class Whaler {
 
     }
 
-    /**
-     * This method builds the market cache by querying for full market data of any market we might trade on
-     */
-    async buildCacheFromScratch() {
-        let unprocessedMarkets = [];
-        let markets = await getAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED");
-
-        for (let i = 0; i < markets.length; i++) {
-
-                if (i % 100 === 0) { this.log.write("pushed " + i + " markets"); }
-                unprocessedMarkets.push(getFullMarket(markets[i].id));
-
-                //slight delay to the server doesn't reject requests due to excessive volume.
-                await sleep(20);
-
-        }
-
-        for (let i in unprocessedMarkets) {
-
-            if (i % 100 === 0) { this.log.write("Cached " + i + " markets"); }
-            await this.cacheMarket(await unprocessedMarkets[i]);
-
-        }
-        this.sortListById(this.allCachedMarkets);
-        await this.saveCache();
-        await this.backupCache();
-    }
-
-    /**
-     * Creates a new array in a FullMarket storing only a list of unique trader ids
-     * (This is more lightweight than the full bet list for medium-term storage.)
-     * @param {*} mkt 
-     */
-    setUniqueTraders(mkt) {
-
-        mkt.uniqueTraders = [];
-
-        if (mkt.bets != undefined) {
-
-            for (let i = 0; i < mkt.bets.length && mkt.uniqueTraders.length < UT_THRESHOLD; i++) {
-                if (mkt.uniqueTraders.find((o) => { return o === mkt.bets[i].userId; }) === undefined) {
-                    mkt.uniqueTraders.push(mkt.bets[i].userId);
-                }
-            }
-        }
-
-    }
-
-    /**
-     * Processes FullMarkets into a stripped down version suitable for caching.
-     * @param {*} fmkt 
-     */
-    cachifyMarket(fmkt) {
-
-        let cachedMarket = this.stripFullMarket(fmkt);
-
-        this.setUniqueTraders(fmkt);
-
-        cachedMarket.bets = [];
-
-        return cachedMarket;
-
-    }
-
-    /**
-     * Adds a FullMarket to the market cache
-     * @param {*} fmkt 
-     */
-    cacheMarket(fmkt) {
-
-        this.allCachedMarkets.push(this.cachifyMarket(fmkt));
-
-    }
-
-    /**
-     * Scan the market cache for markets likely to have changed during periods of program inactivity, and check the server for updates to them.
-     */
-    async updateCache(sinceTime) {
-
-        this.log.write("Updating Stale Cache:\n");
-
-        this.allCachedMarkets = this.allCachedMarkets.sort((a, b) => { return a.createdTime - b.createdTime })
-        //Something failed silently (unresponsive console), when I accidentally deleted everythign with above loop)
-        let allmkts = (await getAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED")).reverse();
-        let mktsToAdd = [];
-
-        let i = 0;
-        while (i < this.allCachedMarkets.length || i < allmkts.length) {
-            
-            if (i > this.allCachedMarkets.length - 1) {
-                mktsToAdd.push(getFullMarket(allmkts[i].id));
-                this.log.sublog("Adding market" + allmkts[i].question);
-            }
-            else if (this.allCachedMarkets[i].id === allmkts[i].id) {
-                    
-                if (this.allCachedMarkets[i].uniqueTraders.length < UT_THRESHOLD && allmkts[i].lastUpdatedTime>sinceTime) {
-                    
-                    this.log.write(this.allCachedMarkets[i].question + " : " + allmkts[i].question);
-                    //you could also try using allmkts[i].volume7Days as the while condition
-                    try {
-                        let reportString = "Updating market " + i + " - " + allmkts[i].question + ": " + this.allCachedMarkets[i].uniqueTraders.length;
-                        this.allCachedMarkets[i] = this.cachifyMarket(await getFullMarket(allmkts[i].id));
-                        reportString += ` ==> ${this.allCachedMarkets[i].uniqueTraders.length}`;
-                        this.log.sublog(reportString);
-                    }
-                    catch (e) {
-                        console.log(e);
-                        throw new Error();
-                    }
-                }
-            } else {
-                
-                this.log.write(this.allCachedMarkets[i].question + " : " + allmkts[i].question);
-                if (this.allCachedMarkets[i].createdTime < allmkts[i].createdTime) {
-                    this.log.write(`${this.allCachedMarkets[i].question} was not found in the API results and was deleted.`);
-                    this.allCachedMarkets.splice(i, 1);
-                    i--;
-                }
-                else {
-                    let e = new Error("For some reason the API provided a market not present in the market cache, which predates the market cache's last run.")
-                    this.log.write(e.message);
-                    //print the next three pairs in case that helps establish what is goign on.
-                    this.log.write(this.allCachedMarkets[++i].question + " : " + allmkts[++i].question);
-                    this.log.write(this.allCachedMarkets[++i].question + " : " + allmkts[++i].question);
-                    this.log.write(this.allCachedMarkets[++i].question + " : " + allmkts[++i].question);
-                    throw e;
-                }
-            }
-            i++;
-        }
-
-        for (let i in mktsToAdd){
-            this.cacheMarket(await mktsToAdd[i]);
-        }
-
-        this.allCachedMarkets = this.sortListById(this.allCachedMarkets);
-    }
-
-    /**
-     * Creates a copy of the market cache (we don't want to lose that hard work in the event of a save error, etc.)
-     */
-    async backupCache() {
-        try {
-            renameSync("/temp/markets.json", "/temp/marketsBACKUP" + dateFormat(undefined, 'yyyy-mm-d_h-MM_TT') + ".json");
-            this.log.write("Cache backup created");
-        } catch (e) {
-            this.log.write("Cache backup failed");
-            this.log.write("Cache backup failed: " + e);
-            console.log(e)
-        }
-
-    }
-
-    /**
-     * Saves the market cache to a file so we don't have to download thousands of markets every time we start the program.
-     */
-    async saveCache() {
-
-        let cacheCopy = this.allCachedMarkets.slice();
-        for (let i in cacheCopy) {
-            cacheCopy[i].bets = [];
-            cacheCopy[i].aggBets = [];
-        }
-        let stream = await writeFile("/temp/markets.json", JSON.stringify(cacheCopy));
-    }
-
-    /**
-     * converts market listings into a pared down form we can save locally. (Saving only data we intend to use, or which doesn't take up much space)
-     * @param {*} mkt 
-     * @returns 
-     */
-    stripFullMarket(mkt) {
-
-        let cmkt = mkt;
-        cmkt.uniqueTraders = [];
-
-        delete cmkt.comments;
-        delete cmkt.answers;
-        delete cmkt.description;
-        delete cmkt.textDescription;
-
-        return cmkt;
-    }
 
 }
