@@ -13,7 +13,8 @@ import {
     createWriteStream,
     createReadStream,
     rename,
-    renameSync
+    renameSync,
+    statSync
 } from 'fs';
 import dateFormat, { masks } from "dateformat";
 
@@ -103,6 +104,18 @@ export class Whaler {
         try {
             this.allCachedMarkets = await readFile(new URL('/temp/markets.json', import.meta.url));
             this.allCachedMarkets = JSON.parse(await this.allCachedMarkets);
+
+            const { mtime, ctime } = statSync(new URL('/temp/markets.json', import.meta.url))
+
+            this.log.write(`Cache age is ${(((new Date()).getTime() - mtime) / 1000) / 60} minutes.`);
+            if (mtime < (new Date()).getTime() - (2 * HOUR)) {
+                this.log.write(mtime + " < " + (new Date()).getTime() + " - " + (2 * HOUR));
+                await this.updateCache();
+            }
+            else {
+                this.log.write("Cache up to date");
+            }
+
         }
         catch (e) {
             console.log(e)
@@ -823,7 +836,6 @@ export class Whaler {
                 }
             }
 
-
         }
 
         this.log.write("-----");
@@ -1183,6 +1195,55 @@ export class Whaler {
 
     }
 
+    /**
+     * Scan the market cache for markets likely to have changed during periods of program inactivity, and check the server for updates to them.
+     */
+    async updateCache() {
+
+        this.log.write("Updating Stale Cache:\n");
+
+        this.allCachedMarkets = this.allCachedMarkets.sort((a, b) => { return a.createdTime - b.createdTime })
+        //Something failed silently (unresponsive console), when I accidentally deleted everythign with above loop)
+        let allmkts = (await getAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED")).reverse();
+
+        let i = 0;
+        while (i < this.allCachedMarkets.length || i < allmkts.length) {
+            this.log.write(this.allCachedMarkets[i].question + " : " + allmkts[i].question);
+            if (i > this.allCachedMarkets.length - 1) {
+                this.cacheMarket(await getFullMarket(allmkts[i].id));
+                this.log.sublog("Adding market" + allmkts[i].question);
+            }
+            else if (this.allCachedMarkets[i].id === allmkts[i].id) {
+                if (this.allCachedMarkets[i].uniqueTraders.length < UT_THRESHOLD) {
+                    try {
+                        let reportString = "Updating market " + i + " - " + allmkts[i].question + ": " + this.allCachedMarkets[i].uniqueTraders.length;
+                        this.allCachedMarkets[i] = this.cachifyMarket(await getFullMarket(allmkts[i].id));
+                        reportString += ` ==> ${this.allCachedMarkets[i].uniqueTraders.length}`;
+                        this.log.sublog(reportString);
+                    }
+                    catch (e) {
+                        console.log(e);
+                        throw new Error();
+                    }
+                }
+            } else {
+                if (this.allCachedMarkets[i].createdTime < allmkts[i].createdTime) {
+                    this.log.write(`${this.allCachedMarkets[i].question} was not found in the API results and was deleted.`);
+                    this.allCachedMarkets.splice(i, 1);
+                    i--;
+                }
+                else {
+                    let e = new Error("For some reason the API provided a market not present in the market cache, which predates the market cache's last run.")
+                    this.log.write(e.message);
+                    throw e;
+                }
+            }
+            i++;
+        }
+
+        this.allCachedMarkets = this.sortListById(this.allCachedMarkets);
+        this.log.write(reportString);
+    }
 
     /**
      * Creates a copy of the market cache (we don't want to lose that hard work in the event of a save error, etc.)
