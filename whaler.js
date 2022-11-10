@@ -989,6 +989,7 @@ export class Whaler {
      */
     async performMaintenance() {
 
+        this.backupCache();
         this.saveCache();
         this.timeOfLastBackup = (new Date()).getTime();
 
@@ -1131,9 +1132,9 @@ export class Whaler {
             await this.cacheMarket(await unprocessedMarkets[i]);
 
         }
-        this.sortListById(this.allCachedMarkets);
-        await this.saveCache();
+        this.allCachedMarkets = this.sortListById(this.allCachedMarkets);
         await this.backupCache();
+        await this.saveCache();
     }
 
     /**
@@ -1189,7 +1190,10 @@ export class Whaler {
     async backupCache() {
         try {
             renameSync("/temp/markets.json", "/temp/marketsBACKUP" + dateFormat(undefined, 'yyyy-mm-d_h-MM_TT') + ".json");
+            this.log.write("Cache backup created");
         } catch (e) {
+            this.log.write("Cache backup failed");
+            this.log.write("Cache backup failed: " + e);
             console.log(e)
         }
 
@@ -1200,11 +1204,12 @@ export class Whaler {
      */
     async saveCache() {
 
-        for (let i in this.allCachedMarkets) {
-            this.allCachedMarkets[i].bets = [];
-            this.allCachedMarkets[i].aggBets = [];
+        let cacheCopy = this.allCachedMarkets.slice();
+        for (let i in cacheCopy) {
+            cacheCopy[i].bets = [];
+            cacheCopy[i].aggBets = [];
         }
-        let stream = await writeFile("/temp/markets.json", JSON.stringify(this.allCachedMarkets));
+        let stream = await writeFile("/temp/markets.json", JSON.stringify(cacheCopy));
     }
 
     /**
