@@ -13,7 +13,8 @@ import {
     createWriteStream,
     createReadStream,
     rename,
-    renameSync
+    renameSync,
+    statSync
 } from 'fs';
 import dateFormat, { masks } from "dateformat";
 
@@ -103,6 +104,18 @@ export class Whaler {
         try {
             this.allCachedMarkets = await readFile(new URL('/temp/markets.json', import.meta.url));
             this.allCachedMarkets = JSON.parse(await this.allCachedMarkets);
+
+            const { mtime, ctime } = statSync(new URL('/temp/markets.json', import.meta.url))
+
+            this.log.write(`Cache age is ${(((new Date()).getTime() - mtime) / 1000) / 60} minutes.`);
+            if (mtime < (new Date()).getTime() - (2 * HOUR)) {
+                this.log.write(mtime + " < " + (new Date()).getTime() + " - " + (2 * HOUR));
+                await this.updateCache();
+            }
+            else {
+                this.log.write("Cache up to date");
+            }
+
         }
         catch (e) {
             console.log(e)
@@ -823,7 +836,6 @@ export class Whaler {
                 }
             }
 
-
         }
 
         this.log.write("-----");
@@ -998,6 +1010,7 @@ export class Whaler {
      */
     async performMaintenance() {
 
+        this.backupCache();
         this.saveCache();
         this.timeOfLastBackup = (new Date()).getTime();
 
@@ -1122,11 +1135,9 @@ export class Whaler {
      */
     async buildCacheFromScratch() {
         let unprocessedMarkets = [];
-        let markets = await getAllMarkets();
+        let markets = await getAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED");
 
         for (let i = 0; i < markets.length; i++) {
-
-            if ((markets[i].outcomeType === "BINARY" || markets[i].outcomeType === "PSEUDO_NUMERIC") && markets[i].isResolved == false) {
 
                 if (i % 100 === 0) { this.log.write("pushed " + i + " markets"); }
                 unprocessedMarkets.push(getFullMarket(markets[i].id));
@@ -1134,7 +1145,6 @@ export class Whaler {
                 //slight delay to the server doesn't reject requests due to excessive volume.
                 await sleep(20);
 
-            }
         }
 
         for (let i in unprocessedMarkets) {
@@ -1169,20 +1179,80 @@ export class Whaler {
     }
 
     /**
-     * Adds a FullMarket to the market cache
+     * Processes FullMarkets into a stripped down version suitable for caching.
      * @param {*} fmkt 
      */
-    async cacheMarket(fmkt) {
+    cachifyMarket(fmkt) {
 
         let cachedMarket = this.stripFullMarket(fmkt);
 
         this.setUniqueTraders(fmkt);
 
         cachedMarket.bets = [];
-        this.allCachedMarkets.push(cachedMarket);
+
+        return cachedMarket;
 
     }
 
+    /**
+     * Adds a FullMarket to the market cache
+     * @param {*} fmkt 
+     */
+    cacheMarket(fmkt) {
+
+        this.allCachedMarkets.push(this.cachifyMarket(fmkt));
+
+    }
+
+    /**
+     * Scan the market cache for markets likely to have changed during periods of program inactivity, and check the server for updates to them.
+     */
+    async updateCache() {
+
+        this.log.write("Updating Stale Cache:\n");
+
+        this.allCachedMarkets = this.allCachedMarkets.sort((a, b) => { return a.createdTime - b.createdTime })
+        //Something failed silently (unresponsive console), when I accidentally deleted everythign with above loop)
+        let allmkts = (await getAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED")).reverse();
+
+        let i = 0;
+        while (i < this.allCachedMarkets.length || i < allmkts.length) {
+            this.log.write(this.allCachedMarkets[i].question + " : " + allmkts[i].question);
+            if (i > this.allCachedMarkets.length - 1) {
+                this.cacheMarket(await getFullMarket(allmkts[i].id));
+                this.log.sublog("Adding market" + allmkts[i].question);
+            }
+            else if (this.allCachedMarkets[i].id === allmkts[i].id) {
+                if (this.allCachedMarkets[i].uniqueTraders.length < UT_THRESHOLD) {
+                    try {
+                        let reportString = "Updating market " + i + " - " + allmkts[i].question + ": " + this.allCachedMarkets[i].uniqueTraders.length;
+                        this.allCachedMarkets[i] = this.cachifyMarket(await getFullMarket(allmkts[i].id));
+                        reportString += ` ==> ${this.allCachedMarkets[i].uniqueTraders.length}`;
+                        this.log.sublog(reportString);
+                    }
+                    catch (e) {
+                        console.log(e);
+                        throw new Error();
+                    }
+                }
+            } else {
+                if (this.allCachedMarkets[i].createdTime < allmkts[i].createdTime) {
+                    this.log.write(`${this.allCachedMarkets[i].question} was not found in the API results and was deleted.`);
+                    this.allCachedMarkets.splice(i, 1);
+                    i--;
+                }
+                else {
+                    let e = new Error("For some reason the API provided a market not present in the market cache, which predates the market cache's last run.")
+                    this.log.write(e.message);
+                    throw e;
+                }
+            }
+            i++;
+        }
+
+        this.allCachedMarkets = this.sortListById(this.allCachedMarkets);
+        this.log.write(reportString);
+    }
 
     /**
      * Creates a copy of the market cache (we don't want to lose that hard work in the event of a save error, etc.)
@@ -1190,7 +1260,10 @@ export class Whaler {
     async backupCache() {
         try {
             renameSync("/temp/markets.json", "/temp/marketsBACKUP" + dateFormat(undefined, 'yyyy-mm-d_h-MM_TT') + ".json");
+            this.log.write("Cache backup created");
         } catch (e) {
+            this.log.write("Cache backup failed");
+            this.log.write("Cache backup failed: " + e);
             console.log(e)
         }
 
@@ -1201,11 +1274,12 @@ export class Whaler {
      */
     async saveCache() {
 
-        for (let i in this.allCachedMarkets) {
-            this.allCachedMarkets[i].bets = [];
-            this.allCachedMarkets[i].aggBets = [];
+        let cacheCopy = this.allCachedMarkets.slice();
+        for (let i in cacheCopy) {
+            cacheCopy[i].bets = [];
+            cacheCopy[i].aggBets = [];
         }
-        let stream = await writeFile("/temp/markets.json", JSON.stringify(this.allCachedMarkets));
+        let stream = await writeFile("/temp/markets.json", JSON.stringify(cacheCopy));
     }
 
     /**
