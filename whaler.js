@@ -1157,17 +1157,28 @@ export class Whaler {
     }
 
     /**
-     * Adds a FullMarket to the market cache
+     * Processes FullMarkets into a stripped down version suitable for caching.
      * @param {*} fmkt 
      */
-    async cacheMarket(fmkt) {
+    cachifyMarket(fmkt) {
 
         let cachedMarket = this.stripFullMarket(fmkt);
 
         this.setUniqueTraders(fmkt);
 
         cachedMarket.bets = [];
-        this.allCachedMarkets.push(cachedMarket);
+
+        return cachedMarket;
+
+    }
+
+    /**
+     * Adds a FullMarket to the market cache
+     * @param {*} fmkt 
+     */
+    cacheMarket(fmkt) {
+
+        this.allCachedMarkets.push(this.cachifyMarket(fmkt));
 
     }
 
