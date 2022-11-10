@@ -267,7 +267,10 @@ export class Whaler {
         else if (this.notableUsers[mkt.creatorId] === "Spindle"
             || this.notableUsers[mkt.creatorId] === "Gurkenglas"
             || this.notableUsers[mkt.creatorId] === "GeorgeVii"
-            || this.notableUsers[mkt.creatorId] === "Gigacasting") {
+            || this.notableUsers[mkt.creatorId] === "Gigacasting"
+            //BTE makes a handful of markets with mass apeal which attract noobs, and a handful of niche markets where ym bot gets run over
+            || this.notableUsers[mkt.creatorId] === "BTE" && mkt.uniqueTraders.length < 15 
+        ) {
             searchLog += " - 0.25 (dangerous creators)";
             returnVal -= .25;
         }
