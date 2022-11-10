@@ -1215,16 +1215,20 @@ export class Whaler {
         this.allCachedMarkets = this.allCachedMarkets.sort((a, b) => { return a.createdTime - b.createdTime })
         //Something failed silently (unresponsive console), when I accidentally deleted everythign with above loop)
         let allmkts = (await getAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED")).reverse();
+        let mktsToAdd = [];
 
         let i = 0;
         while (i < this.allCachedMarkets.length || i < allmkts.length) {
-            this.log.write(this.allCachedMarkets[i].question + " : " + allmkts[i].question);
+            
             if (i > this.allCachedMarkets.length - 1) {
-                this.cacheMarket(await getFullMarket(allmkts[i].id));
+                mktsToAdd.push(getFullMarket(allmkts[i].id));
                 this.log.sublog("Adding market" + allmkts[i].question);
             }
             else if (this.allCachedMarkets[i].id === allmkts[i].id) {
+                    
                 if (this.allCachedMarkets[i].uniqueTraders.length < UT_THRESHOLD && allmkts[i].lastUpdatedTime>sinceTime) {
+                    
+                    this.log.write(this.allCachedMarkets[i].question + " : " + allmkts[i].question);
                     //you could also try using allmkts[i].volume7Days as the while condition
                     try {
                         let reportString = "Updating market " + i + " - " + allmkts[i].question + ": " + this.allCachedMarkets[i].uniqueTraders.length;
@@ -1238,6 +1242,8 @@ export class Whaler {
                     }
                 }
             } else {
+                
+                this.log.write(this.allCachedMarkets[i].question + " : " + allmkts[i].question);
                 if (this.allCachedMarkets[i].createdTime < allmkts[i].createdTime) {
                     this.log.write(`${this.allCachedMarkets[i].question} was not found in the API results and was deleted.`);
                     this.allCachedMarkets.splice(i, 1);
@@ -1246,14 +1252,21 @@ export class Whaler {
                 else {
                     let e = new Error("For some reason the API provided a market not present in the market cache, which predates the market cache's last run.")
                     this.log.write(e.message);
+                    //print the next three pairs in case that helps establish what is goign on.
+                    this.log.write(this.allCachedMarkets[++i].question + " : " + allmkts[++i].question);
+                    this.log.write(this.allCachedMarkets[++i].question + " : " + allmkts[++i].question);
+                    this.log.write(this.allCachedMarkets[++i].question + " : " + allmkts[++i].question);
                     throw e;
                 }
             }
             i++;
         }
 
+        for (let i in mktsToAdd){
+            this.cacheMarket(await mktsToAdd[i]);
+        }
+
         this.allCachedMarkets = this.sortListById(this.allCachedMarkets);
-        this.log.write(reportString);
     }
 
     /**
