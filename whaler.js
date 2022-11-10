@@ -244,16 +244,13 @@ export class Whaler {
         searchLog += " (num unique traders)";
         returnVal += socialProofAdjustment;
 
-
-        // if (mkt.createdTime > time.getTime() - ((MINUTE * 15))) {
-        //     searchLog += " - 0.40";
-        //     returnVal -= .40;
-        // }
-        // //otherwise length open is the only heuristic you have to go on.
-        // else if (mkt.createdTime > time.getTime() - ((DAY * 5))) {
-        //     searchLog +=" - 0.25";
-        //     returnVal -= .25;
-        // }
+        //Minimal weight is placed on market age
+        //since someone exploiting a bot can just such a market sit fallow for a while first
+        //but it's so inconvenient to do so age can work as a minor indicator
+        if (mkt.createdTime > time.getTime() - ((DAY * 45))) {
+            searchLog +=" - 0.15 (age)";
+            returnVal -= .15;
+        }
 
         //The following users have the expertise or inclination to exploit a bot.
         if (this.notableUsers[bettor.id] === "Yev"
