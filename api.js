@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import fetch from 'node-fetch'
 
-const API_URL = process.env.APIURL; 
+const API_URL = process.env.APIURL;
 
 export const getLatestBets = async (num) => {
   try {
@@ -23,8 +23,8 @@ export const getUserById = async (id) => {
 
 export const getUsersBets = async (username, bets) => {
   let url = `${API_URL}/bets?username=${username}`;
-  if (bets!==undefined){
-    url+=`&limit=${bets}`;
+  if (bets !== undefined) {
+    url += `&limit=${bets}`;
   }
   return fetch(url).then(
     (res) => res.json()
@@ -41,85 +41,102 @@ export const getMe = async (key) => {
   return fetch(`${API_URL}/me`, {
     headers: {
       Authorization: `Key ${key}`
-  }
-}).then(
+    }
+  }).then(
     (res) => res.json()
   )
 }
 
 export const getFullMarket = async (id) => {
-    const market = await fetch(`${API_URL}/market/${id}`).then(
-      (res) => res.json()
-    )
-    return market
-  }
+  const market = await fetch(`${API_URL}/market/${id}`).then(
+    (res) => res.json()
+  )
+  return market
+}
 
-  export const getMarkets = async (limit = 1000, before) => {
+export const getMarkets = async (limit = 1000, before) => {
 
-    let results = null;
-    let markets = null;
-    try{
+  let results = null;
+  let markets = null;
+  try {
     markets = await fetch(
       before
         ? `${API_URL}/markets?limit=${limit}&before=${before}`
         : `${API_URL}/markets?limit=${limit}`
-    ).then((res) => {results = res; return res.json();})
+    ).then((res) => { results = res; return res.json(); })
+  }
+  catch (e) {
+    console.log(e);
+    console.log(results);
+  }
+
+  return markets
+}
+
+export const getMarketBySlug = async (slug) => {
+  const market = await fetch(`${API_URL}/slug/${slug}`).then(
+    (res) => res.json()
+  )
+
+  return market
+}
+
+export const getAllMarkets = async (typeFilters, outcomeFilter) => {
+  const allMarkets = []
+  let before = 0
+
+  while (true) {
+    const markets = await getMarkets(1000, before)
+
+    allMarkets.push(...markets)
+    before = markets[markets.length - 1].id
+
+
+    if (markets.length < 1000) break
+  }
+
+  if (typeFilters !== undefined || outcomeFilter !== undefined) {
+    for (let i = 0; i < allMarkets.length;) {
+      if (outcomeFilter === "UNRESOLVED" && allMarkets[i].isResolved == true) {
+        allMarkets.splice(i, 1);
+      }
+      else if (outcomeFilter === "RESOLVED" && allMarkets[i].isResolved == false) {
+        allMarkets.splice(i, 1);
+      }
+      else if (typeFilters !== undefined && typeFilters.find((e) => { return (allMarkets[i].outcomeType === e); }) === undefined) {
+        allMarkets.splice(i, 1);
+      }
+      else {
+        i++;
+      }
+
     }
-    catch(e){
-      console.log(e);
-      console.log(results);
-    }
-  
-    return markets
   }
-
-  export const getMarketBySlug = async (slug) => {
-    const market = await fetch(`${API_URL}/slug/${slug}`).then(
-      (res) => res.json()
-    )
-
-    return market
-  }
-
-  export const getAllMarkets = async () => {
-    const allMarkets = []
-    let before= 0
-  
-    while (true) {
-      const markets= await getMarkets(1000, before)
-  
-      allMarkets.push(...markets)
-      before = markets[markets.length - 1].id
-      
-  
-      if (markets.length < 1000) break
-    }
-  
-    return allMarkets
-  }
+  return allMarkets
+}
 
 
-  export const placeBet = (bet, key) => {
-    return fetch(`${API_URL}/bet`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Key ${key}`,
-      },
-      body: JSON.stringify(bet),
-    }).then((res) => res.json())
-  }
-  
-  export const cancelBet = (betId, key) => {
-    return fetch(`${API_URL}/bet/cancel/${betId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Key ${key}`,
-      },
-    }).then((res) => res.json())
-  }
+export const placeBet = (bet, key) => {
+  return fetch(`${API_URL}/bet`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Key ${key}`,
+    },
+    body: JSON.stringify(bet),
+  }).then((res) => res.json())
+}
 
-  export const betAndCancel = (betId, key) => {
+export const cancelBet = (betId, key) => {
+  return fetch(`${API_URL}/bet/cancel/${betId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Key ${key}`,
+    },
+  }).then((res) => res.json())
+}
 
-  }
+export const betAndCancel = (betId, key) => {
+
+}

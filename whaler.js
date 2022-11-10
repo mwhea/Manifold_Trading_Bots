@@ -1113,11 +1113,9 @@ export class Whaler {
      */
     async buildCacheFromScratch() {
         let unprocessedMarkets = [];
-        let markets = await getAllMarkets();
+        let markets = await getAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED");
 
         for (let i = 0; i < markets.length; i++) {
-
-            if ((markets[i].outcomeType === "BINARY" || markets[i].outcomeType === "PSEUDO_NUMERIC") && markets[i].isResolved == false) {
 
                 if (i % 100 === 0) { this.log.write("pushed " + i + " markets"); }
                 unprocessedMarkets.push(getFullMarket(markets[i].id));
@@ -1125,7 +1123,6 @@ export class Whaler {
                 //slight delay to the server doesn't reject requests due to excessive volume.
                 await sleep(20);
 
-            }
         }
 
         for (let i in unprocessedMarkets) {
