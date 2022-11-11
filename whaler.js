@@ -358,7 +358,7 @@ export class Whaler {
 
             let i = 0;
 
-            while (i < thisCurve.length && !caughtOne) {
+            while ((i < thisCurve.length || attempts.length>0) && !caughtOne) { // Nov 11, 2022: checking if there's any pending promises is a new condition which may introduce bugs
 
                 await sleep(5);
 
