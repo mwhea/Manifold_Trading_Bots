@@ -489,9 +489,8 @@ export class Whaler {
                     parentMarket.bets.unshift(newBets[i]);
                     parentMarket.probability = newBets[i].probAfter;
 
-
                     //if you haven't already marked this market as having received new bets in this run, add it.
-                    if (changedMarkets.find((e) => { e.id === newBets[i].contractId }) === undefined) {
+                    if (changedMarkets.find((cm) => { return (cm.id === parentMarket.id); }) === undefined) {
                         changedMarkets.push(parentMarket);
                         this.ellipsesDisplay = 0;
                     }
