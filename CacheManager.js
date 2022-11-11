@@ -39,7 +39,7 @@ export class CacheManager {
     /**
      * Loads the internal user & market caches from file or generates them from scratch if need be.
      */
-    async createCaches() {
+    async fillCaches() {
 
         this.users = getAllUsers();
 

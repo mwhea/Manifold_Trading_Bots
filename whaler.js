@@ -76,7 +76,7 @@ export class Whaler {
      */
     async additionalConstruction() {
 
-        this.cache.createCaches();
+        this.cache.fillCaches();
         this.notableUsers = JSON.parse(await this.notableUsers);
 
         this.lastScannedBet = (await getLatestBets(1))[0].id;
@@ -422,6 +422,7 @@ export class Whaler {
                     this.performMaintenance();
                 }
             }
+            
         }
     }
 
