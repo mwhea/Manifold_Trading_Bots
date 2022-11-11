@@ -250,6 +250,8 @@ export class CacheManager {
 
     /**
      * Scan the market cache for markets likely to have changed during periods of program inactivity, and check the server for updates to them.
+     *
+     * @param {*} sinceTime time cache was last updated.
      */
     async updateCache(sinceTime) {
 
@@ -269,10 +271,13 @@ export class CacheManager {
             }
             else if (this.markets[i].id === allmkts[i].id) {
 
-                if (this.markets[i].uniqueTraders.length < UT_THRESHOLD && allmkts[i].lastUpdatedTime > sinceTime) {
+                if (this.markets[i].uniqueTraders.length < UT_THRESHOLD 
+                    && (allmkts[i].lastUpdatedTime > sinceTime)){ 
+                        //you could use something like this for a "hard" refresh                        
+                        //let lapse = (new Date()).getTime()-sinceTime;
+                        //}  || (lapse>45*MINUTE && allmkts[i].volume7Days>0))) {
 
                     this.log.write(this.markets[i].question + " : " + allmkts[i].question);
-                    //you could also try using allmkts[i].volume7Days as the while condition
                     try {
                         let reportString = "Updating market " + i + " - " + allmkts[i].question + ": " + this.markets[i].uniqueTraders.length;
                         this.markets[i] = this.cachifyMarket(await getFullMarket(allmkts[i].id));
@@ -296,9 +301,9 @@ export class CacheManager {
                     let e = new Error("For some reason the API provided a market not present in the market cache, which predates the market cache's last run.")
                     this.log.write(e.message);
                     //print the next three pairs in case that helps establish what is goign on.
-                    this.log.write(this.markets[++i].question + " : " + allmkts[++i].question);
-                    this.log.write(this.markets[++i].question + " : " + allmkts[++i].question);
-                    this.log.write(this.markets[++i].question + " : " + allmkts[++i].question);
+                    for (let i in 3){
+                        this.log.write(this.markets[i].question + " : " + allmkts[i].question);
+                    }
                     throw e;
                 }
             }

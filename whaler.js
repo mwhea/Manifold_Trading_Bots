@@ -82,7 +82,7 @@ export class Whaler {
         this.lastScannedBet = (await getLatestBets(1))[0].id;
 
         await isCacheFull;
-        
+
         this.performMaintenance();
 
     }
@@ -413,11 +413,11 @@ export class Whaler {
                     }
                 }
             }
+
             if (!caughtOne || !this.settings.cachingActive) {
                 //on no new bets in 15 secs:
                 newBetsExpectedAt += CACHING_DURATION;
             }
-
             if (!caughtOne) {
 
                 this.log.write("....");
@@ -736,11 +736,16 @@ export class Whaler {
 
         let marketsToInspect = mti
 
+        this.log.write("Changed Markets:")
+        for (let j in marketsToInspect){
+            this.log.sublog(j+": "+marketsToInspect[j].question);
+        }
+
         for (let i in marketsToInspect) {
 
             let currentMarket = marketsToInspect[i];
 
-            // in case it gets unsorted somehow
+            // for checking if bets have gotten unsorted
             // for (let w in currentMarket.bets){
             //     this.log.write(""+(currentMarket.bets[w].createdTime-this.timeOfLastBet));
             // }
@@ -771,7 +776,7 @@ export class Whaler {
                 let thisAgg = currentMarket.aggBets[j];
                 if (thisAgg === undefined) {
                     console.log(currentMarket);
-                    throw new Error("Aggregate Bets Missing");
+                    throw new Error(`Aggregate Bets Missing (does not have ${j}th item`);
                 }
 
                 //thisAgg.constituentBets = [];
@@ -844,27 +849,27 @@ export class Whaler {
 
                             if (this.settings.mode === "bet") {
                                 this.timeOfLastBet = thisAgg.constituentBets[0].createdTime;
-                                try{
-                                bet.id = (await placeBet(bet, process.env.APIKEY).then(
-                                    (resjson) => {
-                                        this.log.write("bet placed: " + resjson.betId);
-                                        console.log(resjson);
-                                        let tryAgainIn = 10;
-                                        while (tryAgainIn != 0) {
-                                            try {
-                                                cancelBet(resjson.betId, process.env.APIKEY);
-                                                tryAgainIn = 0;
+                                try {
+                                    bet.id = (await placeBet(bet, process.env.APIKEY).then(
+                                        (resjson) => {
+                                            this.log.write("bet placed: " + resjson.betId);
+                                            console.log(resjson);
+                                            let tryAgainIn = 10;
+                                            while (tryAgainIn != 0) {
+                                                try {
+                                                    cancelBet(resjson.betId, process.env.APIKEY);
+                                                    tryAgainIn = 0;
+                                                }
+                                                catch (e) {
+                                                    this.log.write("Failed to cancel bet: " + e.message);
+                                                    tryAgainIn *= 2;
+                                                }
                                             }
-                                            catch (e) {
-                                                this.log.write("Failed to cancel bet: " + e.message);
-                                                tryAgainIn *= 2;
-                                            }
+                                            return resjson;
                                         }
-                                        return resjson;
-                                    }
-                                )
-                                ).betId;
-                                } catch (e){
+                                    )
+                                    ).betId;
+                                } catch (e) {
                                     this.log.write("awaited code crashed while placing bet.");
                                 }
                             }
