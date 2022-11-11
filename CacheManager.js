@@ -10,6 +10,10 @@ import {
     statSync
 } from 'fs';
 
+import{
+sleep
+} from './utility_functions.js';
+
 import {SECOND, MINUTE, HOUR, DAY} from "./timeWords.js";
 
 import dateFormat, { masks } from "dateformat";

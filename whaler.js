@@ -76,10 +76,13 @@ export class Whaler {
      */
     async additionalConstruction() {
 
-        this.cache.fillCaches();
+        let isCacheFull = this.cache.fillCaches();
         this.notableUsers = JSON.parse(await this.notableUsers);
 
         this.lastScannedBet = (await getLatestBets(1))[0].id;
+
+        await isCacheFull;
+        
         this.performMaintenance();
 
     }
@@ -841,6 +844,7 @@ export class Whaler {
 
                             if (this.settings.mode === "bet") {
                                 this.timeOfLastBet = thisAgg.constituentBets[0].createdTime;
+                                try{
                                 bet.id = (await placeBet(bet, process.env.APIKEY).then(
                                     (resjson) => {
                                         this.log.write("bet placed: " + resjson.betId);
@@ -860,7 +864,9 @@ export class Whaler {
                                     }
                                 )
                                 ).betId;
-                                // if you put the liquidation order in a then, you can reduce some latency
+                                } catch (e){
+                                    this.log.write("awaited code crashed while placing bet.");
+                                }
                             }
                             else if (this.settings.mode === "dry-run" || this.settings.mode === "dry-run-w-mock-betting") {
                                 bet.probAfter = bet.limitProb;
