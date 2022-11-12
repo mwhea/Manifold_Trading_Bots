@@ -30,7 +30,7 @@ import { UT_THRESHOLD } from "./CacheManager.js"
 
 const MIN_P_MOVEMENT = .0375;
 const CACHING_DURATION = 15000;
-const OUTGOING_LIMIT = 1000;
+const OUTGOING_LIMIT = 3500;
 //speeds: (run every n milliseconds)
 const HYPERDRIVE = 10;
 const FAST = 50;
@@ -447,27 +447,28 @@ export class Whaler {
             }
         }
 
-        if (indexOfLastScan === undefined) {
+        let betsToGet = 100;
+        while (indexOfLastScan === undefined && betsToGet<2000) {
             try {
-                newBets = await getLatestBets(500);
+                newBets = await getLatestBets(betsToGet);
                 for (let i = 0; i < newBets.length - 1; i++) {
                     if (newBets[i].id === this.lastScannedBet) {
                         indexOfLastScan = i;
                     }
                 }
                 if (indexOfLastScan === undefined) {
-                    throw new Error("lastbet still not found");
+                    this.log.write("NewBets collection RERUN failed (id of lastscannedbet: " + this.lastScannedBet + ")");
+                    betsToGet*=2;
                 }
             }
             catch (e) {
-                this.log.write("NewBets collection RERUN failed (id of lastscannedbet: " + this.lastScannedBet + ")");
-                for (let j in newBets) {
-                    //if bug persists, sublog a list of collected newbets.
-                }
                 console.log(e);
+                this.log.write(e.message);
                 return;
             }
-
+        }
+        if(indexOfLastScan === undefined){
+            throw new Error("Backup bet gathering failed.");
         }
 
         //among the bets collected, scan all the bets made since you last ran this method.
@@ -506,10 +507,10 @@ export class Whaler {
         this.timeOfLastScan = newBets[0].createdTime;
 
         //if nothing has been logged for a while, print some ellipses to it's clear the program is still active.
-        if ((MINUTE * (this.ellipsesDisplay + 1)) < Date.now() - this.timeOfLastScan) {
-            this.log.write("...");
-            this.ellipsesDisplay++;
-        }
+        // if ((MINUTE * (this.ellipsesDisplay + 1)) < Date.now() - this.timeOfLastScan) {
+        //     this.log.write("...");
+        //     this.ellipsesDisplay++;
+        // }
 
         this.huntWhales(changedMarkets);
 
@@ -737,8 +738,8 @@ export class Whaler {
         let marketsToInspect = mti
 
         this.log.write("Changed Markets:")
-        for (let j in marketsToInspect){
-            this.log.sublog(j+": "+marketsToInspect[j].question);
+        for (let m in marketsToInspect){
+            this.log.sublog(m+": "+marketsToInspect[m].question);
         }
 
         for (let i in marketsToInspect) {
@@ -771,7 +772,7 @@ export class Whaler {
             currentMarket.aggBets = await currentMarket.aggBets;
 
             //analyze the aggbets
-            for (let j in currentMarket.aggBets) {
+            for (let j = 0; j < currentMarket.aggBets.length; j++) {
 
                 let thisAgg = currentMarket.aggBets[j];
                 if (thisAgg === undefined) {
@@ -779,7 +780,6 @@ export class Whaler {
                     throw new Error(`Aggregate Bets Missing (does not have ${j}th item`);
                 }
 
-                //thisAgg.constituentBets = [];
                 console.log(thisAgg);
 
                 let betDifference = 0
@@ -844,8 +844,6 @@ export class Whaler {
 
                         if (this.settings.mode === "dry-run" || this.settings.mode === "dry-run-w-mock-betting" || this.settings.mode === "bet") {
                             this.log.write("Betting against " + thisAgg.bettorName + " (" + thisAgg.bettorAssessment + ") on " + currentMarket.question + " (" + currentMarket.probability + "at " + (new Date()).getTime() + " milliseconds)");
-                            console.log(bet);
-                            let myBetId = undefined;
 
                             if (this.settings.mode === "bet") {
                                 this.timeOfLastBet = thisAgg.constituentBets[0].createdTime;
