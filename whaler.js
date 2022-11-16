@@ -319,6 +319,8 @@ export class Whaler {
         let penultimateBet = undefined;
 
         let notACurve = [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000];
+        
+        let sparseBellCurve = [-3000, -1000, -100, -35, 0, 35, 100, 1000, 3000];
         let bellCurve = [-3000, -1000, -250, -100, -50, -35, -20, -12, -5, 0, 5, 12, 20, 35, 50, 100, 250, 1000, 3000];
         let extraOffset = -50;
         for (let i in bellCurve) {
@@ -352,7 +354,13 @@ export class Whaler {
                 thisCurve = cachingInactive;
                 initialNumOfBets = 2;
             } else {
-                thisCurve = bellCurve;
+                //since speeds by defaut measure milliseconds per poll, greater than a speed in fact measures being slower
+                if (speed>NORMAL){ 
+                    thisCurve = sparseBellCurve;
+                }
+                else{
+                    thisCurve = bellCurve;
+                }
                 initialNumOfBets = 20;
             }
 
