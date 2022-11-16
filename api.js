@@ -31,11 +31,7 @@ export const getUsersBets = async (username, bets) => {
   )
 }
 
-export const getAllUsers = async () => {
-  return fetch(`${API_URL}/users`).then(
-    (res) => res.json()
-  )
-}
+
 
 export const getMe = async (key) => {
   return fetch(`${API_URL}/me`, {
@@ -51,6 +47,14 @@ export const getFullMarket = async (id) => {
   const market = await fetch(`${API_URL}/market/${id}`).then(
     (res) => res.json()
   )
+  return market
+}
+
+export const getMarketBySlug = async (slug) => {
+  const market = await fetch(`${API_URL}/slug/${slug}`).then(
+    (res) => res.json()
+  )
+
   return market
 }
 
@@ -71,14 +75,6 @@ export const getMarkets = async (limit = 1000, before) => {
   }
 
   return markets
-}
-
-export const getMarketBySlug = async (slug) => {
-  const market = await fetch(`${API_URL}/slug/${slug}`).then(
-    (res) => res.json()
-  )
-
-  return market
 }
 
 export const getAllMarkets = async (typeFilters, outcomeFilter) => {
@@ -115,6 +111,54 @@ export const getAllMarkets = async (typeFilters, outcomeFilter) => {
   return allMarkets
 }
 
+// export const getAllUsers = async () => {
+//   return fetch(`${API_URL}/users`).then(
+//     (res) => res.json()
+//   )
+// }
+
+export const getUsers = async (limit = 1000, before) => {
+
+  let results = null;
+  let users = null;
+  try {
+    users = await fetch(
+      before
+        ? `${API_URL}/users?limit=${limit}&before=${before}`
+        : `${API_URL}/users?limit=${limit}`
+    ).then((res) => { console.log(res); try{results = res.json();}catch(e){console.log(e)}; return results; })
+    .catch((err)=>{console.log(err)})
+  }
+  catch (e) {
+    console.log(e);
+    console.log(results);
+  }
+
+  return users
+}
+
+export const getAllUsers = async () => {
+
+  try {
+    const allUsers = []
+    let before = 0
+
+    while (true) {
+      await sleep(2000);
+      const users = await getMarkets(1000, before)
+
+      console.log("adding users " + before + " to " + (before + 1000));
+      allUsers.push(...users)
+      before = users[users.length - 1].id
+
+
+      if (users.length < 1000) break
+    }
+    return allUsers
+  } catch (e) {
+    console.log(e);
+  }
+}
 
 export const placeBet = (bet, key) => {
   return fetch(`${API_URL}/bet`, {
