@@ -24,6 +24,8 @@ import {
     writeFile
 } from 'fs/promises';
 
+const CACHE_MIN_FRESHNESS = 2 * HOUR ;
+
 export const UT_THRESHOLD = 20;
 
 
@@ -54,8 +56,8 @@ export class CacheManager {
             const { mtime, ctime } = statSync(new URL('/temp/markets.json', import.meta.url))
 
             this.log.write(`Cache age is ${(((new Date()).getTime() - mtime) / 1000) / 60} minutes.`);
-            if (mtime < (new Date()).getTime() - (4 * HOUR)) {
-                this.log.write(mtime + " < " + (new Date()).getTime() + " - " + (30 * MINUTE));
+            if (mtime < (new Date()).getTime() - (CACHE_MIN_FRESHNESS)) {
+                this.log.write((mtime-0) + " < " + ((new Date()).getTime() - CACHE_MIN_FRESHNESS));
                 await this.updateCache(mtime);
             }
             else {
