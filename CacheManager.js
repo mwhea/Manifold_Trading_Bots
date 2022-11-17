@@ -24,6 +24,7 @@ import {
     writeFile
 } from 'fs/promises';
 
+const CACHEDIR = process.env.CACHEDIR;
 const CACHE_MIN_FRESHNESS = 2 * HOUR ;
 const USER_CACHE_MIN_FRESHNESS = 1 * DAY ;
 
@@ -49,10 +50,10 @@ export class CacheManager {
     async fillCaches() {
 
         try {
-            this.markets = await readFile(new URL('/temp/markets.json', import.meta.url));
+            this.markets = await readFile(new URL(`${CACHEDIR}/markets.json`, import.meta.url));
             this.markets = JSON.parse(this.markets);
 
-            const { mtime, ctime } = statSync(new URL('/temp/markets.json', import.meta.url))
+            const { mtime, ctime } = statSync(new URL(`${CACHEDIR}/markets.json`, import.meta.url))
 
             this.log.write(`Cache age is ${(((new Date()).getTime() - mtime) / 1000) / 60} minutes.`);
             if (mtime < (new Date()).getTime() - (CACHE_MIN_FRESHNESS)) {
@@ -77,7 +78,7 @@ export class CacheManager {
         let didIgetAFreshList = false;
         //if((new Date()).getTime()>USERS_CACHE_MIN_FRESHNESS)
         try {
-            const { mtime, ctime } = statSync(new URL('/temp/users.json', import.meta.url));
+            const { mtime, ctime } = statSync(new URL(`${CACHEDIR}/users.json`, import.meta.url));
             if (mtime < (new Date()).getTime() - (USER_CACHE_MIN_FRESHNESS)) {
                 
                 this.users = getAllUsers();
@@ -92,10 +93,10 @@ export class CacheManager {
             console.log("/users endpoint down. Consulting local backup");
         }
         if (didIgetAFreshList){
-            writeFile("/temp/users.json", JSON.stringify(this.users));
+            writeFile(`${CACHEDIR}/users.json`, JSON.stringify(this.users));
         }
         else{
-            this.users = await readFile(new URL('/temp/users.json', import.meta.url));
+            this.users = await readFile(new URL(`${CACHEDIR}/users.json`, import.meta.url));
             this.users = JSON.parse(this.users);
         }
 
@@ -288,6 +289,7 @@ export class CacheManager {
         let mktsToAdd = [];
 
         let i = 0;
+        console.log("started reviewingin mkts")
         while (i < this.markets.length || i < allmkts.length) {
 
             if (i > this.markets.length - 1) {
@@ -347,7 +349,7 @@ export class CacheManager {
      */
     async backupCache() {
         try {
-            renameSync("/temp/markets.json", "/temp/marketsBACKUP" + dateFormat(undefined, 'yyyy-mm-d_h-MM_TT') + ".json");
+            renameSync(`${CACHEDIR}/markets.json`, `${CACHEDIR}/marketsBACKUP${dateFormat(undefined, 'yyyy-mm-d_h-MM_TT')}.json`);
             this.log.write("Cache backup created");
         } catch (e) {
             this.log.write("Cache backup failed");
@@ -367,7 +369,7 @@ export class CacheManager {
             cacheCopy[i].bets = [];
             cacheCopy[i].aggBets = [];
         }
-        let stream = await writeFile("/temp/markets.json", JSON.stringify(cacheCopy));
+        await writeFile(`${CACHEDIR}/markets.json`, JSON.stringify(cacheCopy));
     }
 
     /**

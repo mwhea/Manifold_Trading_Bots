@@ -788,7 +788,7 @@ export class Whaler {
                     throw new Error(`Aggregate Bets Missing (does not have ${j}th item`);
                 }
 
-                console.log(thisAgg);
+                //console.log(thisAgg);
 
                 let betDifference = 0
                 //if the bet hasn't been totally negated by other price movements
@@ -851,7 +851,7 @@ export class Whaler {
                         bet.limitProb = roundToPercent(bet.limitProb);
 
                         if (this.settings.mode === "dry-run" || this.settings.mode === "dry-run-w-mock-betting" || this.settings.mode === "bet") {
-                            this.log.write("Betting against " + thisAgg.bettorName + " (" + thisAgg.bettorAssessment + ") on " + currentMarket.question + " (" + currentMarket.probability + "at " + (new Date()).getTime() + " milliseconds)");
+                            this.log.write("Betting "+bet.outcome+" against " + thisAgg.bettorName + " (" + thisAgg.bettorAssessment + ") on " + currentMarket.question + " (" + currentMarket.probability + " at " + (new Date()).getTime() + " milliseconds)");
 
                             if (this.settings.mode === "bet") {
                                 this.timeOfLastBet = thisAgg.constituentBets[0].createdTime;
@@ -901,7 +901,7 @@ export class Whaler {
             }
         }
         catch (e) {
-            console.log(`Failed to get ${username}'s bets: ${r}. Defaulting to 'online'.`);
+            console.log(`Failed to get ${username}'s bets. Defaulting to 'online'.`);
         }
         return true;
     }
