@@ -25,6 +25,7 @@ import {
 } from 'fs/promises';
 
 const CACHE_MIN_FRESHNESS = 2 * HOUR ;
+const USER_CACHE_MIN_FRESHNESS = 1 * DAY ;
 
 export const UT_THRESHOLD = 20;
 
@@ -47,11 +48,9 @@ export class CacheManager {
      */
     async fillCaches() {
 
-        this.users = getAllUsers();
-
         try {
             this.markets = await readFile(new URL('/temp/markets.json', import.meta.url));
-            this.markets = JSON.parse(await this.markets);
+            this.markets = JSON.parse(this.markets);
 
             const { mtime, ctime } = statSync(new URL('/temp/markets.json', import.meta.url))
 
@@ -75,7 +74,31 @@ export class CacheManager {
             await this.buildCacheFromScratch();
         }
 
-        this.users = this.sortListById(await this.users);
+        let didIgetAFreshList = false;
+        //if((new Date()).getTime()>USERS_CACHE_MIN_FRESHNESS)
+        try {
+            const { mtime, ctime } = statSync(new URL('/temp/users.json', import.meta.url));
+            if (mtime < (new Date()).getTime() - (USER_CACHE_MIN_FRESHNESS)) {
+                
+                this.users = getAllUsers();
+                this.users = this.sortListById(await this.users);
+                didIgetAFreshList = true;
+            }
+            else {
+                this.log.write("user cache less than a day old, using local copy");
+            }
+        }
+        catch (e) {
+            console.log("/users endpoint down. Consulting local backup");
+        }
+        if (didIgetAFreshList){
+            writeFile("/temp/users.json", JSON.stringify(this.users));
+        }
+        else{
+            this.users = await readFile(new URL('/temp/users.json', import.meta.url));
+            this.users = JSON.parse(this.users);
+        }
+
     }
 
     /**

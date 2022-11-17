@@ -355,7 +355,7 @@ export class Whaler {
                 initialNumOfBets = 2;
             } else {
                 //since speeds by defaut measure milliseconds per poll, greater than a speed in fact measures being slower
-                if (speed>NORMAL){ 
+                if (this.getSpeed()>NORMAL){ 
                     thisCurve = sparseBellCurve;
                 }
                 else{
