@@ -234,7 +234,18 @@ export class CacheManager {
      */
     setUniqueTraders(mkt) {
 
+        
         mkt.uniqueTraders = [];
+
+        if (mkt.bets===undefined){
+            console.log(mkt);
+            this.log.write("Market question: " + mkt.question)
+            this.log.write("Market bets: ")
+            console.log(mkt.bets);
+            for(let i = 0; i<UT_THRESHOLD; i++){
+                mkt.uniqueTraders.push(""+i);
+            }
+        }
 
         if (mkt.bets != undefined) {
 
