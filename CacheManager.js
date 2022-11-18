@@ -126,9 +126,9 @@ export class CacheManager {
      * @param {*} id 
      * @returns 
      */
-    async addUser(id) {
+    addUser(id) {
 
-        let user = await getUserById(id);
+        let user = getUserById(id);
         this.users.push(user);
         this.users = this.sortListById(this.users);
         return user;
@@ -146,7 +146,7 @@ export class CacheManager {
         let end = list.length - 1;
         let middle;
 
-        let searchLog = "ID holder wasn't found\n";
+        let searchLog = "ID "+id+" wasn't found\n";
 
         while (start <= end) {
             middle = Math.floor((start + end) / 2);
@@ -177,8 +177,8 @@ export class CacheManager {
             this.log.write("ERROR: Attempting to search a bad array");
             console.log(list[0]);
         }
-        this.log.write("list length: " + end);
 
+        searchLog += ("list length: " + (list.length - 1)+"\n");
         searchLog += ("Immediate Vicinity: " + list[end - 1].id + ", " + list[end].id + ", " + list[end + 1].id);
         this.log.write(searchLog);
         return undefined;
@@ -255,7 +255,7 @@ export class CacheManager {
 
         let cachedMarket = this.stripFullMarket(fmkt);
 
-        this.setUniqueTraders(fmkt);
+        this.setUniqueTraders(cachedMarket);
 
         cachedMarket.bets = [];
 
@@ -270,6 +270,7 @@ export class CacheManager {
     cacheMarket(fmkt) {
 
         this.markets.push(this.cachifyMarket(fmkt));
+        //you can make this a lot more efficient with splice()
         this.sortListById(this.markets);
 
     }
@@ -284,17 +285,17 @@ export class CacheManager {
         this.log.write("Updating Stale Cache:\n");
 
         this.markets = this.markets.sort((a, b) => { return a.createdTime - b.createdTime })
-        //Something failed silently (unresponsive console), when I accidentally deleted everythign with above loop)
+        //Something failed silently (unresponsive console), when I accidentally deleted everything with above loop)
         let allmkts = (await getAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED")).reverse();
         let mktsToAdd = [];
 
         let i = 0;
-        console.log("started reviewingin mkts")
+        console.log("started reviewing mkts")
         while (i < this.markets.length || i < allmkts.length) {
 
             if (i > this.markets.length - 1) {
                 mktsToAdd.push(getFullMarket(allmkts[i].id));
-                this.log.sublog("Adding market" + allmkts[i].question);
+                this.log.sublog("Adding market: " + allmkts[i].question);
             }
             else if (this.markets[i].id === allmkts[i].id) {
 
@@ -313,7 +314,8 @@ export class CacheManager {
                     }
                     catch (e) {
                         console.log(e);
-                        throw new Error();
+                        
+                        throw new Error("Failed to Update unique bettors of: "+this.markets[i].question);
                     }
                 }
             } else {
@@ -338,7 +340,7 @@ export class CacheManager {
         }
 
         for (let i in mktsToAdd) {
-            this.cacheMarket(await mktsToAdd[i]);
+            this.markets.push(this.cachifyMarket(await mktsToAdd[i]));
         }
 
         this.markets = this.sortListById(this.markets);

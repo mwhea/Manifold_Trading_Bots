@@ -1,5 +1,8 @@
 import 'dotenv/config'
 import fetch from 'node-fetch'
+import{
+  sleep
+  } from './utility_functions.js';
 
 const API_URL = process.env.APIURL;
 
@@ -144,7 +147,7 @@ export const getAllUsers = async () => {
     let before = 0
 
     while (true) {
-      await sleep(2000);
+      await sleep(50);
       const users = await getMarkets(1000, before)
 
       console.log("adding users " + before + " to " + (before + 1000));

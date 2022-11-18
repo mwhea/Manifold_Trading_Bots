@@ -606,7 +606,7 @@ export class Whaler {
                     }
 
                     aggregateBets.push(thisAggregate);
-                    betPlacers.push(getUserById(betToScan.userId));
+                    betPlacers.push(this.cache.getUserById(betToScan.userId));
                 }
                 else {
                     thisAggregate.probBefore = betToScan.probBefore;
