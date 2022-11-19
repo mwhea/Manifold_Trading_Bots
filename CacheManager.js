@@ -59,6 +59,7 @@ export class CacheManager {
             if (mtime < (new Date()).getTime() - (CACHE_MIN_FRESHNESS)) {
                 this.log.write((mtime-0) + " < " + ((new Date()).getTime() - CACHE_MIN_FRESHNESS));
                 await this.updateCache(mtime);
+                await this.saveCache();
             }
             else {
                 this.log.write("Cache up to date");
@@ -219,7 +220,7 @@ export class CacheManager {
         for (let i in unprocessedMarkets) {
 
             if (i % 100 === 0) { this.log.write("Cached " + i + " markets"); }
-            await this.cacheMarket(await unprocessedMarkets[i]);
+            this.cacheMarket(await unprocessedMarkets[i]);
 
         }
         this.sortListById(this.markets);
@@ -319,7 +320,8 @@ export class CacheManager {
                     this.log.write(this.markets[i].question + " : " + allmkts[i].question);
                     try {
                         let reportString = "Updating market " + i + " - " + allmkts[i].question + ": " + this.markets[i].uniqueTraders.length;
-                        this.markets[i] = this.cachifyMarket(await getFullMarket(allmkts[i].id));
+                        this.markets[i] = await getFullMarket(allmkts[i].id);
+                        this.markets[i] = this.cachifyMarket(this.markets[i]);
                         reportString += ` ==> ${this.markets[i].uniqueTraders.length}`;
                         this.log.sublog(reportString);
                     }
