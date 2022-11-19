@@ -129,7 +129,7 @@ export const getUsers = async (limit = 1000, before) => {
       before
         ? `${API_URL}/users?limit=${limit}&before=${before}`
         : `${API_URL}/users?limit=${limit}`
-    ).then((res) => { console.log(res); try{results = res.json();}catch(e){console.log(e)}; return results; })
+    ).then((res) => { try{results = res.json();}catch(e){console.log(e)}; return results; })
     .catch((err)=>{console.log(err)})
   }
   catch (e) {
@@ -153,7 +153,6 @@ export const getAllUsers = async () => {
       console.log("adding users " + before + " to " + (before + 1000));
       allUsers.push(...users)
       before = users[users.length - 1].id
-
 
       if (users.length < 1000) break
     }

@@ -26,7 +26,7 @@ import {
 } from 'fs/promises';
 
 const CACHEDIR = process.env.CACHEDIR;
-const CACHE_MIN_FRESHNESS = 2 * HOUR ;
+const CACHE_MIN_FRESHNESS = 20 * MINUTE ;
 const USER_CACHE_MIN_FRESHNESS = 1 * DAY ;
 
 export const UT_THRESHOLD = 20;
@@ -110,7 +110,7 @@ export class CacheManager {
         if (shouldIgetAFreshList){
             writeFile(`${CACHEDIR}/users.json`, JSON.stringify(this.users));
         }
-
+        this.log.write(`Filled caches with ${this.markets.length} markets and ${this.users.length} users`);
     }
 
     /**
