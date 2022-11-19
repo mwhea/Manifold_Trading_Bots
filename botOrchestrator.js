@@ -1,6 +1,6 @@
 import {
-    getAllMarkets,
-    getMe
+    fetchAllMarkets,
+    fetchMe
 } from "./api.js";
 
 import {

@@ -6,7 +6,7 @@ import{
 
 const API_URL = process.env.APIURL;
 
-export const getLatestBets = async (num) => {
+export const latestBets = async (num) => {
   try {
     let result = await fetch(`${API_URL}/bets?limit=${num}`)
     result = result.json()
@@ -18,13 +18,13 @@ export const getLatestBets = async (num) => {
   }
 }
 
-export const getUserById = async (id) => {
+export const fetchUserById = async (id) => {
   return fetch(`${API_URL}/user/by-id/${id}`).then(
     (res) => res.json()
   );
 }
 
-export const getUsersBets = async (username, bets) => {
+export const fetchUsersBets = async (username, bets) => {
   let url = `${API_URL}/bets?username=${username}`;
   if (bets !== undefined) {
     url += `&limit=${bets}`;
@@ -34,9 +34,7 @@ export const getUsersBets = async (username, bets) => {
   )
 }
 
-
-
-export const getMe = async (key) => {
+export const fetchMe = async (key) => {
   return fetch(`${API_URL}/me`, {
     headers: {
       Authorization: `Key ${key}`
@@ -46,14 +44,14 @@ export const getMe = async (key) => {
   )
 }
 
-export const getFullMarket = async (id) => {
+export const fetchFullMarket = async (id) => {
   const market = await fetch(`${API_URL}/market/${id}`).then(
     (res) => res.json()
   )
   return market
 }
 
-export const getMarketBySlug = async (slug) => {
+export const fetchMarketBySlug = async (slug) => {
   const market = await fetch(`${API_URL}/slug/${slug}`).then(
     (res) => res.json()
   )
@@ -61,7 +59,7 @@ export const getMarketBySlug = async (slug) => {
   return market
 }
 
-export const getMarkets = async (limit = 1000, before) => {
+export const fetchMarkets = async (limit = 1000, before) => {
 
   let results = null;
   let markets = null;
@@ -80,12 +78,12 @@ export const getMarkets = async (limit = 1000, before) => {
   return markets
 }
 
-export const getAllMarkets = async (typeFilters, outcomeFilter) => {
+export const fetchAllMarkets = async (typeFilters, outcomeFilter) => {
   const allMarkets = []
   let before = 0
 
   while (true) {
-    const markets = await getMarkets(1000, before)
+    const markets = await fetchMarkets(1000, before)
 
     allMarkets.push(...markets)
     before = markets[markets.length - 1].id
@@ -114,13 +112,7 @@ export const getAllMarkets = async (typeFilters, outcomeFilter) => {
   return allMarkets
 }
 
-// export const getAllUsers = async () => {
-//   return fetch(`${API_URL}/users`).then(
-//     (res) => res.json()
-//   )
-// }
-
-export const getUsers = async (limit = 1000, before) => {
+export const fetchUsers = async (limit = 1000, before) => {
 
   let results = null;
   let users = null;
@@ -140,7 +132,7 @@ export const getUsers = async (limit = 1000, before) => {
   return users
 }
 
-export const getAllUsers = async () => {
+export const fetchAllUsers = async () => {
 
   try {
     const allUsers = []
@@ -148,7 +140,7 @@ export const getAllUsers = async () => {
 
     while (true) {
       await sleep(50);
-      const users = await getUsers(1000, before)
+      const users = await fetchUsers(1000, before)
 
       console.log("adding users " + before + " to " + (before + 1000));
       allUsers.push(...users)

@@ -1,12 +1,12 @@
 import {
-    getMarketBySlug,
-    getUsersBets,
+    fetchMarketBySlug,
+    fetchUsersBets,
     placeBet
 } from './api.js';
 
 const dummyMarkets = [
-    await getMarketBySlug("market-resolution-is-yes-but-undox"),
-    await getMarketBySlug("this-question-will-resolve-positive-5c753f5a33e1")
+    await fetchMarketBySlug("market-resolution-is-yes-but-undox"),
+    await fetchMarketBySlug("this-question-will-resolve-positive-5c753f5a33e1")
 ];
 
 export class Streaker {
@@ -21,7 +21,7 @@ export class Streaker {
         let time = new Date();
 
         for (let i in this.settings.accountsToMaintain) {
-            let lastBet = (await getUsersBets(this.settings.accountsToMaintain[i], 1))[0];
+            let lastBet = (await fetchUsersBets(this.settings.accountsToMaintain[i], 1))[0];
             if (lastBet.createdTime + (1000 *60*60 * 16) < time.getTime()) {
                 console.log("streaker placing bet for "+this.settings.accountsToMaintain[i]);
                 let j = 0;

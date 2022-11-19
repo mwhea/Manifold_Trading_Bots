@@ -1,6 +1,6 @@
 import { formatTimezone } from 'dateformat';
 import {
-  getMarketBySlug,
+  fetchMarketBySlug,
   placeBet
 } from './api.js';
 
@@ -24,7 +24,7 @@ let settings = JSON.parse(
 ).velocitySlayer;
 
 export async function velocitySlayer() {
-  let mkt = await getMarketBySlug("planecrash-will-belmarniss-have-any");
+  let mkt = await fetchMarketBySlug("planecrash-will-belmarniss-have-any");
   let netPosition = getNetPosition(mkt);
 
   console.log ("<<< running velocity scan ("+dToP(mkt.probability)+") >>> netpos = "+netPosition);

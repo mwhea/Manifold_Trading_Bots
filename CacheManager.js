@@ -1,8 +1,8 @@
 import {
-    getAllMarkets,
-    getUserById,
-    getFullMarket,
-    getAllUsers
+    fetchAllMarkets,
+    fetchUserById,
+    fetchFullMarket,
+    fetchAllUsers
 } from './api.js';
 
 import {
@@ -95,7 +95,7 @@ export class CacheManager {
         }
         if(shouldIgetAFreshList){
             try{
-                this.users = this.sortListById(await getAllUsers());
+                this.users = this.sortListById(await fetchAllUsers());
                 }
                 catch (e) {
                     console.log(e);
@@ -139,7 +139,7 @@ export class CacheManager {
      */
     async addUser(id) {
 
-        let user = await getUserById(id);
+        let user = await fetchUserById(id);
         this.users.push(user);
         this.users = this.sortListById(this.users);
         return user;
@@ -215,12 +215,12 @@ export class CacheManager {
      */
     async buildCacheFromScratch() {
         let unprocessedMarkets = [];
-        let markets = await getAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED");
+        let markets = await fetchAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED");
 
         for (let i = 0; i < markets.length; i++) {
 
             if (i % 100 === 0) { this.log.write("pushed " + i + " markets"); }
-            unprocessedMarkets.push(getFullMarket(markets[i].id));
+            unprocessedMarkets.push(fetchFullMarket(markets[i].id));
 
             //slight delay to the server doesn't reject requests due to excessive volume.
             await sleep(20);
@@ -308,7 +308,7 @@ export class CacheManager {
 
         this.markets = this.markets.sort((a, b) => { return a.createdTime - b.createdTime })
         //Something failed silently (unresponsive console), when I accidentally deleted everything with above loop)
-        let allmkts = (await getAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED")).reverse();
+        let allmkts = (await fetchAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED")).reverse();
         let mktsToAdd = [];
 
         let i = 0;
@@ -316,7 +316,7 @@ export class CacheManager {
         while (i < this.markets.length || i < allmkts.length) {
 
             if (i > this.markets.length - 1) {
-                mktsToAdd.push(getFullMarket(allmkts[i].id));
+                mktsToAdd.push(fetchFullMarket(allmkts[i].id));
                 this.log.sublog("Adding market: " + allmkts[i].question);
             }
             else if (this.markets[i].id === allmkts[i].id) {
@@ -330,7 +330,7 @@ export class CacheManager {
                     this.log.write(this.markets[i].question + " : " + allmkts[i].question);
                     try {
                         let reportString = "Updating market " + i + " - " + allmkts[i].question + ": " + this.markets[i].uniqueTraders.length;
-                        this.markets[i] = await getFullMarket(allmkts[i].id);
+                        this.markets[i] = await fetchFullMarket(allmkts[i].id);
                         this.markets[i] = this.cachifyMarket(this.markets[i]);
                         reportString += ` ==> ${this.markets[i].uniqueTraders.length}`;
                         this.log.sublog(reportString);
@@ -362,7 +362,7 @@ export class CacheManager {
                         }
                     }
 
-                    this.markets.splice(i, 0, this.cachifyMarket(await getFullMarket(allmkts[i].id)));
+                    this.markets.splice(i, 0, this.cachifyMarket(await fetchFullMarket(allmkts[i].id)));
                     this.log.sublog("Adding market: " + allmkts[i].question);
                 }
             }

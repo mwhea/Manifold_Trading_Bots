@@ -1,10 +1,10 @@
 import {
-    getUserById,
-    getFullMarket,
+    fetchUserById,
+    fetchFullMarket,
     placeBet,
     cancelBet,
-    getLatestBets,
-    getUsersBets
+    latestBets,
+    fetchUsersBets
 } from './api.js';
 
 import {
@@ -79,7 +79,7 @@ export class Whaler {
         let isCacheFull = this.cache.fillCaches();
         this.notableUsers = JSON.parse(await this.notableUsers);
 
-        this.lastScannedBet = (await getLatestBets(1))[0].id;
+        this.lastScannedBet = (await latestBets(1))[0].id;
 
         await isCacheFull;
 
@@ -345,7 +345,7 @@ export class Whaler {
 
             if (newBetsExpectedAt === undefined) {
                 newBetsExpectedAt = (new Date()).getTime();
-                lastBet = (await getLatestBets(1))[0].id;
+                lastBet = (await latestBets(1))[0].id;
                 thisCurve = notACurve;
             } else if (whiffs > 10) {
                 thisCurve = notACurve;
@@ -373,7 +373,7 @@ export class Whaler {
                 // If enough time has elapsed, add a new request to the queue
                 if ((new Date()).getTime() > newBetsExpectedAt + thisCurve[i]) {
 
-                    attempts.push({ "latestBets": getLatestBets(initialNumOfBets), "sentTime": (new Date()).getTime() });
+                    attempts.push({ "latestBets": latestBets(initialNumOfBets), "sentTime": (new Date()).getTime() });
                     i++;
 
                 }
@@ -458,7 +458,7 @@ export class Whaler {
         let betsToGet = 100;
         while (indexOfLastScan === undefined && betsToGet<2000) {
             try {
-                newBets = await getLatestBets(betsToGet);
+                newBets = await latestBets(betsToGet);
                 for (let i = 0; i < newBets.length - 1; i++) {
                     if (newBets[i].id === this.lastScannedBet) {
                         indexOfLastScan = i;
@@ -493,7 +493,7 @@ export class Whaler {
                     let parentMarket = this.cache.getMarketById(newBets[i].contractId);
                     if (parentMarket === undefined) {
 
-                        this.cache.cacheMarket(await getFullMarket(newBets[i].contractId));
+                        this.cache.cacheMarket(await fetchFullMarket(newBets[i].contractId));
                         let mkt = this.cache.findIdHolderInList(newBets[i].contractId, this.cache.markets);
                         this.log.write("======");
                         this.log.write("New Market: " + mkt.question + ": " + dToP(newBets[i].probAfter));
@@ -895,7 +895,7 @@ export class Whaler {
 
     async isUserOnline(username) {
         try {
-            let vbets = await getUsersBets(username, 1);
+            let vbets = await fetchUsersBets(username, 1);
             if (vbets[0].createdTime < (new Date()).getTime() - (2 * HOUR)) {
                 return false;
             }
