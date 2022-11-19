@@ -7,7 +7,8 @@ import {
 
 import {
     renameSync,
-    statSync
+    statSync,
+    existsSync
 } from 'fs';
 
 import{
@@ -76,29 +77,38 @@ export class CacheManager {
             await this.buildCacheFromScratch();
         }
 
-        let didIgetAFreshList = false;
+        let shouldIgetAFreshList = false;
         //if((new Date()).getTime()>USERS_CACHE_MIN_FRESHNESS)
-        try {
+        if(!existsSync(new URL(`${CACHEDIR}/users.json`, import.meta.url))){
+            this.log.write("No user cache. Downloading anew.");
+            shouldIgetAFreshList = true;
+        }
+        else {
             const { mtime, ctime } = statSync(new URL(`${CACHEDIR}/users.json`, import.meta.url));
-            if (mtime < (new Date()).getTime() - (USER_CACHE_MIN_FRESHNESS)) {
-                
-                this.users = getAllUsers();
-                this.users = this.sortListById(await this.users);
-                didIgetAFreshList = true;
+            if(mtime < (new Date()).getTime() - (USER_CACHE_MIN_FRESHNESS)){
+                this.log.write("user cache more than a day old, downloading new copy");
+                shouldIgetAFreshList = true;
             }
-            else {
+            else{
                 this.log.write("user cache less than a day old, using local copy");
             }
         }
-        catch (e) {
-            console.log("/users endpoint down. Consulting local backup");
+        if(shouldIgetAFreshList){
+            try{
+                this.users = this.sortListById(await getAllUsers());
+                }
+                catch (e) {
+                    console.log(e);
+                    this.log.write("'/users' endpoint down. Consulting local backup");
+                    shouldIgetAFreshList=false;
+                }
         }
-        if (didIgetAFreshList){
-            writeFile(`${CACHEDIR}/users.json`, JSON.stringify(this.users));
-        }
-        else{
+        if(!shouldIgetAFreshList){
             this.users = await readFile(new URL(`${CACHEDIR}/users.json`, import.meta.url));
             this.users = JSON.parse(this.users);
+        }
+        if (shouldIgetAFreshList){
+            writeFile(`${CACHEDIR}/users.json`, JSON.stringify(this.users));
         }
 
     }
