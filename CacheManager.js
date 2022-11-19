@@ -340,13 +340,20 @@ export class CacheManager {
                     i--;
                 }
                 else {
+                    //there exists some legitimate reasons why the API might markets older than the cache but not in the cache.
+                    //maybe the program was off for a time span in which several markets were created, only some of which were subsequently noticed and added.
                     let e = new Error("For some reason the API provided a market not present in the market cache, which predates the market cache's last run.")
                     this.log.write(e.message);
-                    //print the next three pairs in case that helps establish what is goign on.
-                    for (let i in 3){
-                        this.log.write(this.markets[i].question + " : " + allmkts[i].question);
+                    //we're not going to throw this error, we're still testing whether its useful.
+                    //print the next three pairs in case that helps establish what is going on.
+                    for (let j = 0; j < 3; j++) {
+                        if(i+j< this.markets[i].id && i+j< allmkts[i].id){
+                            this.log.write(this.markets[i+j].question + " : " + allmkts[i+j].question);
+                        }
                     }
-                    throw e;
+
+                    this.markets.splice(i, 0, this.cachifyMarket(await getFullMarket(allmkts[i].id)));
+                    this.log.sublog("Adding market: " + allmkts[i].question);
                 }
             }
             i++;
