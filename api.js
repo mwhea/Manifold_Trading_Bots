@@ -148,7 +148,7 @@ export const getAllUsers = async () => {
 
     while (true) {
       await sleep(50);
-      const users = await getMarkets(1000, before)
+      const users = await getUsers(1000, before)
 
       console.log("adding users " + before + " to " + (before + 1000));
       allUsers.push(...users)
