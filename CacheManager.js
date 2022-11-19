@@ -126,9 +126,9 @@ export class CacheManager {
      * @param {*} id 
      * @returns 
      */
-    addUser(id) {
+    async addUser(id) {
 
-        let user = getUserById(id);
+        let user = await getUserById(id);
         this.users.push(user);
         this.users = this.sortListById(this.users);
         return user;
