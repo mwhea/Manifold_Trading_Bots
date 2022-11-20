@@ -12,23 +12,23 @@ import {
     existsSync
 } from 'fs';
 
-import{
-sleep
-} from './utility_functions.js';
-
-import {SECOND, MINUTE, HOUR, DAY} from "./timeWords.js";
-
-import dateFormat, { masks } from "dateformat";
-import { Logger } from "./Logger.js";
-
 import {
     readFile,
     writeFile
 } from 'fs/promises';
 
+import dateFormat, { masks } from "dateformat";
+
+import { SECOND, MINUTE, HOUR, DAY } from "./timeWords.js";
+
+import { Logger } from "./Logger.js";
+
+import { sleep } from './utility_functions.js';
+import { markAsUntransferable } from 'worker_threads';
+
 const CACHEDIR = process.env.CACHEDIR;
-const CACHE_MIN_FRESHNESS = 20 * MINUTE ;
-const USER_CACHE_MIN_FRESHNESS = 1 * DAY ;
+const CACHE_MIN_FRESHNESS = 20 * MINUTE;
+const USER_CACHE_MIN_FRESHNESS = 1 * DAY;
 
 export const UT_THRESHOLD = 20;
 
@@ -59,7 +59,7 @@ export class CacheManager {
 
             this.log.write(`Cache age is ${(((new Date()).getTime() - mtime) / 1000) / 60} minutes.`);
             if (mtime < (new Date()).getTime() - (CACHE_MIN_FRESHNESS)) {
-                this.log.write((mtime-0) + " < " + ((new Date()).getTime() - CACHE_MIN_FRESHNESS));
+                this.log.write((mtime - 0) + " < " + ((new Date()).getTime() - CACHE_MIN_FRESHNESS));
                 await this.updateCache(mtime);
                 await this.saveCache();
             }
@@ -80,35 +80,35 @@ export class CacheManager {
 
         let shouldIgetAFreshList = false;
         //if((new Date()).getTime()>USERS_CACHE_MIN_FRESHNESS)
-        if(!existsSync(new URL(`${CACHEDIR}/users.json`, import.meta.url))){
+        if (!existsSync(new URL(`${CACHEDIR}/users.json`, import.meta.url))) {
             this.log.write("No user cache. Downloading anew.");
             shouldIgetAFreshList = true;
         }
         else {
             const { mtime, ctime } = statSync(new URL(`${CACHEDIR}/users.json`, import.meta.url));
-            if(mtime < (new Date()).getTime() - (USER_CACHE_MIN_FRESHNESS)){
+            if (mtime < (new Date()).getTime() - (USER_CACHE_MIN_FRESHNESS)) {
                 this.log.write("user cache more than a day old, downloading new copy");
                 shouldIgetAFreshList = true;
             }
-            else{
+            else {
                 this.log.write("user cache less than a day old, using local copy");
             }
         }
-        if(shouldIgetAFreshList){
-            try{
+        if (shouldIgetAFreshList) {
+            try {
                 this.users = this.sortListById(await fetchAllUsers());
-                }
-                catch (e) {
-                    console.log(e);
-                    this.log.write("'/users' endpoint down. Consulting local backup");
-                    shouldIgetAFreshList=false;
-                }
+            }
+            catch (e) {
+                console.log(e);
+                this.log.write("'/users' endpoint down. Consulting local backup");
+                shouldIgetAFreshList = false;
+            }
         }
-        if(!shouldIgetAFreshList){
+        if (!shouldIgetAFreshList) {
             this.users = await readFile(new URL(`${CACHEDIR}/users.json`, import.meta.url));
             this.users = JSON.parse(this.users);
         }
-        if (shouldIgetAFreshList){
+        if (shouldIgetAFreshList) {
             writeFile(`${CACHEDIR}/users.json`, JSON.stringify(this.users));
         }
         this.log.write(`Filled caches with ${this.markets.length} markets and ${this.users.length} users`);
@@ -134,20 +134,6 @@ export class CacheManager {
     }
 
     /**
-     * Fetches user from server by id, and adds them to user cache.
-     * @param {*} id 
-     * @returns 
-     */
-    async addUser(id) {
-
-        let user = await fetchUserById(id);
-        this.users.push(user);
-        this.users = this.sortListById(this.users);
-        return user;
-
-    }
-
-    /**
      * Binary search which can be used on either the locally stored list of markets or the list of users
      * @param {*} id 
      * @param {*} list 
@@ -158,7 +144,7 @@ export class CacheManager {
         let end = list.length - 1;
         let middle;
 
-        let searchLog = "ID "+id+" wasn't found\n";
+        let searchLog = "ID " + id + " wasn't found\n";
 
         while (start <= end) {
             middle = Math.floor((start + end) / 2);
@@ -190,7 +176,7 @@ export class CacheManager {
             console.log(list[0]);
         }
 
-        searchLog += ("list length: " + (list.length - 1)+"\n");
+        searchLog += ("list length: " + (list.length - 1) + "\n");
         searchLog += ("Immediate Vicinity: " + list[end - 1].id + ", " + list[end].id + ", " + list[end + 1].id);
         this.log.write(searchLog);
         return undefined;
@@ -239,67 +225,7 @@ export class CacheManager {
     }
 
     /**
-     * Creates a new array in a FullMarket storing only a list of unique trader ids
-     * (This is more lightweight than the full bet list for medium-term storage.)
-     * @param {*} mkt 
-     */
-    async setUniqueTraders(mkt) {
-
-        let bets = await fetchBetsByMarket(mkt.id);
-
-        mkt.uniqueTraders = [];
-
-        if (bets===undefined){
-            throw new Error("Tried to set the unique traders of a market without providing a valid bet array");
-            console.log(mkt);
-            this.log.write("Market question: " + mkt.question)
-            this.log.write("Market bets: ")
-            console.log(mkt.bets);
-            for(let i = 0; i<UT_THRESHOLD; i++){
-                mkt.uniqueTraders.push(""+i);
-            }
-        }
-
-        if (bets != undefined) {
-
-            for (let i = 0; i < bets.length && mkt.uniqueTraders.length < UT_THRESHOLD; i++) {
-                if (mkt.uniqueTraders.find((o) => { return o === bets[i].userId; }) === undefined) {
-                    mkt.uniqueTraders.push(bets[i].userId);
-                }
-            }
-        }
-
-    }
-
-    /**
-     * Processes FullMarkets into a stripped down version suitable for caching.
-     * @param {*} fmkt 
-     */
-    async cachifyMarket(fmkt) {
-
-        this.stripMarket(fmkt);
-
-        await this.setUniqueTraders(fmkt);
-
-        return fmkt;
-
-    }
-
-    /**
-     * Adds a FullMarket to the market cache
-     * @param {*} fmkt 
-     */
-    async cacheMarket(fmkt) {
-
-        this.markets.push(await this.cachifyMarket(fmkt));
-        //you can make this a lot more efficient with splice()
-        this.sortListById(this.markets);
-
-    }
-
-    /**
      * Scan the market cache for markets likely to have changed during periods of program inactivity, and check the server for updates to them.
-     *
      * @param {*} sinceTime time cache was last updated.
      */
     async updateCache(sinceTime) {
@@ -321,23 +247,23 @@ export class CacheManager {
             }
             else if (this.markets[i].id === allmkts[i].id) {
 
-                if (this.markets[i].uniqueTraders.length < UT_THRESHOLD 
-                    && (allmkts[i].lastUpdatedTime > sinceTime)){ 
-                        //you could use something like this for a "hard" refresh                        
-                        //let lapse = (new Date()).getTime()-sinceTime;
-                        //}  || (lapse>45*MINUTE && allmkts[i].volume7Days>0))) {
+                if (this.markets[i].uniqueTraders.length < UT_THRESHOLD
+                    && (allmkts[i].lastUpdatedTime > sinceTime)) {
+                    //you could use something like this for a "hard" refresh                        
+                    //let lapse = (new Date()).getTime()-sinceTime;
+                    //}  || (lapse>45*MINUTE && allmkts[i].volume7Days>0))) {
 
                     this.log.write(this.markets[i].question + " : " + allmkts[i].question);
                     try {
                         let reportString = "Updating market " + i + " - " + allmkts[i].question + ": " + this.markets[i].uniqueTraders.length;
-                        await this.setUniqueTraders(this.markets[i]);
+                        await this.fetchAndSetUniqueTraders(this.markets[i]);
                         reportString += ` ==> ${this.markets[i].uniqueTraders.length}`;
                         this.log.sublog(reportString);
                     }
                     catch (e) {
                         console.log(e);
-                        
-                        throw new Error("Failed to Update unique bettors of: "+this.markets[i].question);
+
+                        throw new Error("Failed to Update unique bettors of: " + this.markets[i].question);
                     }
                 }
             } else {
@@ -356,8 +282,8 @@ export class CacheManager {
                     //we're not going to throw this error, we're still testing whether its useful.
                     //print the next three pairs in case that helps establish what is going on.
                     for (let j = 0; j < 3; j++) {
-                        if(i+j< this.markets[i].id && i+j< allmkts[i].id){
-                            this.log.write(this.markets[i+j].question + " : " + allmkts[i+j].question);
+                        if (i + j < this.markets[i].id && i + j < allmkts[i].id) {
+                            this.log.write(this.markets[i + j].question + " : " + allmkts[i + j].question);
                         }
                     }
 
@@ -401,6 +327,106 @@ export class CacheManager {
             cacheCopy[i].aggBets = [];
         }
         await writeFile(`${CACHEDIR}/markets.json`, JSON.stringify(cacheCopy));
+    }
+
+    /**
+     * Creates a new array in a market storing only a list of unique trader ids
+     * (This is more lightweight than the full bet list for medium-term storage.)
+     * @param {*} mkt 
+     */
+    setUniqueTraders(mkt, bets) {
+
+        mkt.uniqueTraders = [];
+
+        if (bets === undefined) {
+            let err = new Error("ERROR: Tried to set the unique traders of a market without providing a valid bet array");
+            this.log.write("Market question: " + mkt.question)
+            this.log.write("Market bets: ")
+            console.log(mkt.bets); //TODO: loop to log this
+            for (let i = 0; i < UT_THRESHOLD; i++) {
+                mkt.uniqueTraders.push("" + i);
+            }
+            throw err;
+        }
+
+        if (bets != undefined) {
+
+            for (let i = 0; i < bets.length && mkt.uniqueTraders.length < UT_THRESHOLD; i++) {
+                if (mkt.uniqueTraders.find((o) => { return o === bets[i].userId; }) === undefined) {
+                    mkt.uniqueTraders.push(bets[i].userId);
+                }
+            }
+        }
+    }
+
+    /**
+     * This is the function you call instead of setUniqueTraders which also gets the latest bets on that market
+     * (which you do not typically have on hand)
+     * @param {*} mkt 
+     */
+    async fetchAndSetUniqueTraders(mkt) {
+
+        let bets = await fetchBetsByMarket(mkt.id);
+        this.setUniqueTraders(mkt, bets);
+        
+    }
+
+    /**
+     * Fetches user from server by id, and adds them to user cache.
+     * @returns 
+     * */
+    async addUser(id) {
+
+        let user = await fetchUserById(id);
+        this.users.push(user);
+        this.users = this.sortListById(this.users);
+        return user;
+
+    }
+
+
+    /**
+     * Receives a LiteMarket and processes it into a version suitable for caching.
+     * Strips unused fields and fetches bet history to tabulate number of unique bettors.
+     * @param {*} mkt 
+     */
+    async cachifyMarket(mkt) {
+
+        this.stripMarket(mkt);
+        await this.fetchAndSetUniqueTraders(mkt);
+
+        return mkt;
+
+    }
+
+    /**
+     * Adds a market to the market cache
+     * @param {*} mkt 
+     */
+    async cacheMarket(mkt) {
+
+        this.markets.push(await this.cachifyMarket(mkt));
+        //you can make this a lot more efficient with splice()
+        this.sortListById(this.markets);
+
+    }
+
+    /**
+     * Does the full suite of actions needed to add a market to cache, based on market id, 
+     * uses a slightly more efficient async/await queue
+     * @param {*} id 
+     * @returns the added market
+     */
+    async downloadAndCacheMarket(id) {
+        let mkt = fetchFullMarket(id);
+        let bets = fetchBetsByMarket(id);
+        mkt = await mkt; 
+        this.stripMarket(mkt);
+        bets = await bets;
+        this.setUniqueTraders(mkt, bets);
+        this.markets.push(mkt);
+        this.sortListById(this.markets);
+        return mkt;
     }
 
     /**

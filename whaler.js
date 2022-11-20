@@ -493,8 +493,7 @@ export class Whaler {
                     let parentMarket = this.cache.getMarketById(newBets[i].contractId);
                     if (parentMarket === undefined) {
 
-                        await this.cache.cacheMarket(await fetchFullMarket(newBets[i].contractId));
-                        let mkt = this.cache.findIdHolderInList(newBets[i].contractId, this.cache.markets);
+                        let mkt = await this.cache.downloadAndCacheMarket(newBets[i].contractId);
                         this.log.write("======");
                         this.log.write("New Market: " + mkt.question + ": " + dToP(newBets[i].probAfter));
                         parentMarket = mkt;
