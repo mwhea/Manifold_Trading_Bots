@@ -51,6 +51,13 @@ export const fetchFullMarket = async (id) => {
   return market
 }
 
+export const fetchBetsByMarket = async (id, limit) => {
+  const bets = await fetch(`${API_URL}/bets?contractId=${id}`).then(
+    (res) => res.json()
+  )
+  return bets
+}
+
 export const fetchMarketBySlug = async (slug) => {
   const market = await fetch(`${API_URL}/slug/${slug}`).then(
     (res) => res.json()
@@ -87,7 +94,6 @@ export const fetchAllMarkets = async (typeFilters, outcomeFilter) => {
 
     allMarkets.push(...markets)
     before = markets[markets.length - 1].id
-
 
     if (markets.length < 1000) break
   }

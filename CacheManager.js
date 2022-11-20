@@ -2,7 +2,8 @@ import {
     fetchAllMarkets,
     fetchUserById,
     fetchFullMarket,
-    fetchAllUsers
+    fetchAllUsers,
+    fetchBetsByMarket
 } from './api.js';
 
 import {
@@ -209,7 +210,6 @@ export class CacheManager {
         return list;
     }
 
-
     /**
      * This method builds the market cache by querying for full market data of any market we might trade on
      */
@@ -243,12 +243,14 @@ export class CacheManager {
      * (This is more lightweight than the full bet list for medium-term storage.)
      * @param {*} mkt 
      */
-    setUniqueTraders(mkt) {
+    async setUniqueTraders(mkt) {
 
-        
+        let bets = await fetchBetsByMarket(mkt.id);
+
         mkt.uniqueTraders = [];
 
-        if (mkt.bets===undefined){
+        if (bets===undefined){
+            throw new Error("Tried to set the unique traders of a market without providing a valid bet array");
             console.log(mkt);
             this.log.write("Market question: " + mkt.question)
             this.log.write("Market bets: ")
@@ -258,11 +260,11 @@ export class CacheManager {
             }
         }
 
-        if (mkt.bets != undefined) {
+        if (bets != undefined) {
 
-            for (let i = 0; i < mkt.bets.length && mkt.uniqueTraders.length < UT_THRESHOLD; i++) {
-                if (mkt.uniqueTraders.find((o) => { return o === mkt.bets[i].userId; }) === undefined) {
-                    mkt.uniqueTraders.push(mkt.bets[i].userId);
+            for (let i = 0; i < bets.length && mkt.uniqueTraders.length < UT_THRESHOLD; i++) {
+                if (mkt.uniqueTraders.find((o) => { return o === bets[i].userId; }) === undefined) {
+                    mkt.uniqueTraders.push(bets[i].userId);
                 }
             }
         }
@@ -273,15 +275,13 @@ export class CacheManager {
      * Processes FullMarkets into a stripped down version suitable for caching.
      * @param {*} fmkt 
      */
-    cachifyMarket(fmkt) {
+    async cachifyMarket(fmkt) {
 
-        let cachedMarket = this.stripFullMarket(fmkt);
+        this.stripMarket(fmkt);
 
-        this.setUniqueTraders(cachedMarket);
+        await this.setUniqueTraders(fmkt);
 
-        cachedMarket.bets = [];
-
-        return cachedMarket;
+        return fmkt;
 
     }
 
@@ -289,9 +289,9 @@ export class CacheManager {
      * Adds a FullMarket to the market cache
      * @param {*} fmkt 
      */
-    cacheMarket(fmkt) {
+    async cacheMarket(fmkt) {
 
-        this.markets.push(this.cachifyMarket(fmkt));
+        this.markets.push(await this.cachifyMarket(fmkt));
         //you can make this a lot more efficient with splice()
         this.sortListById(this.markets);
 
@@ -316,7 +316,7 @@ export class CacheManager {
         while (i < this.markets.length || i < allmkts.length) {
 
             if (i > this.markets.length - 1) {
-                mktsToAdd.push(fetchFullMarket(allmkts[i].id));
+                mktsToAdd.push(this.cachifyMarket(allmkts[i]));
                 this.log.sublog("Adding market: " + allmkts[i].question);
             }
             else if (this.markets[i].id === allmkts[i].id) {
@@ -330,8 +330,7 @@ export class CacheManager {
                     this.log.write(this.markets[i].question + " : " + allmkts[i].question);
                     try {
                         let reportString = "Updating market " + i + " - " + allmkts[i].question + ": " + this.markets[i].uniqueTraders.length;
-                        this.markets[i] = await fetchFullMarket(allmkts[i].id);
-                        this.markets[i] = this.cachifyMarket(this.markets[i]);
+                        await this.setUniqueTraders(this.markets[i]);
                         reportString += ` ==> ${this.markets[i].uniqueTraders.length}`;
                         this.log.sublog(reportString);
                     }
@@ -362,7 +361,7 @@ export class CacheManager {
                         }
                     }
 
-                    this.markets.splice(i, 0, this.cachifyMarket(await fetchFullMarket(allmkts[i].id)));
+                    this.markets.splice(i, 0, await this.cachifyMarket(allmkts[i]));
                     this.log.sublog("Adding market: " + allmkts[i].question);
                 }
             }
@@ -370,7 +369,7 @@ export class CacheManager {
         }
 
         for (let i in mktsToAdd) {
-            this.markets.push(this.cachifyMarket(await mktsToAdd[i]));
+            this.markets.push(await mktsToAdd[i]);
         }
 
         this.markets = this.sortListById(this.markets);
@@ -409,16 +408,16 @@ export class CacheManager {
      * @param {*} mkt 
      * @returns 
      */
-    stripFullMarket(mkt) {
+    stripMarket(mkt) {
 
         let cmkt = mkt;
         cmkt.uniqueTraders = [];
 
         //we may not need to start with fullmarkets at all, if the only thing we're getting from them is bettor ids.
-        delete cmkt.comments;
-        delete cmkt.answers;
-        delete cmkt.description;
-        delete cmkt.textDescription;
+        // delete cmkt.comments;
+        // delete cmkt.answers;
+        // delete cmkt.description;
+        // delete cmkt.textDescription;
 
         //removing small data values even litemarkets have, just to save a modicum of extra space.
         delete cmkt.creatorAvatarUrl;
