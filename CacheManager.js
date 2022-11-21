@@ -111,6 +111,7 @@ export class CacheManager {
         if (shouldIgetAFreshList) {
             writeFile(`${CACHEDIR}/users.json`, JSON.stringify(this.users));
         }
+
         this.log.write(`Filled caches with ${this.markets.length} markets and ${this.users.length} users`);
     }
 
@@ -134,12 +135,26 @@ export class CacheManager {
     }
 
     /**
-     * Binary search which can be used on either the locally stored list of markets or the list of users
+     * Variant of the generic binary search which returns the sought item rather than its index
+     * @param {*} id 
+     * @param {*} list 
+     * @returns 
+     */
+    findIdHolderInList(id, list) {
+        let index = this.findIndexInList(id, list);
+        if (index === undefined) { return index; }
+        else {
+            return list[index];
+        }
+    }
+
+    /**
+     * Binary search searches the provided list by ID and returns the index of the sought item
      * @param {*} id 
      * @param {*} list 
      * @returns the sought-after object
      * */
-    findIdHolderInList(id, list) {
+    findIndexInList(id, list) {
         let start = 0;
         let end = list.length - 1;
         let middle;
@@ -151,7 +166,7 @@ export class CacheManager {
 
             if (list[middle].id === id) {
                 // found the key
-                return list[middle];
+                return middle;
             } else if (list[middle].id < id) {
                 // continue searching to the right
                 searchLog += "cachedId " + "<" + " id\n";
