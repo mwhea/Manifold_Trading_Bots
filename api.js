@@ -58,6 +58,14 @@ export const fetchBetsByMarket = async (id, limit) => {
   return bets
 }
 
+export const fetchMarketsInGroup = async (id) => {
+  const markets = await fetch(`${API_URL}/group/by-id/${id}/markets`).then(
+    (res) => res.json()
+  )
+
+  return markets
+}
+
 export const fetchMarketBySlug = async (slug) => {
   const market = await fetch(`${API_URL}/slug/${slug}`).then(
     (res) => res.json()

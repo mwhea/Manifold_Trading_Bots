@@ -3,7 +3,8 @@ import {
     fetchUserById,
     fetchFullMarket,
     fetchAllUsers,
-    fetchBetsByMarket
+    fetchBetsByMarket,
+    fetchMarketsInGroup
 } from './api.js';
 
 import {
@@ -41,6 +42,7 @@ export class CacheManager {
     constructor(logger) {
 
         this.log = logger;
+        this.blacklistedGroups = ["IiNevwTtyukII0eSmPIB"];
         this.users = [];
         this.markets = [];
 
@@ -217,6 +219,7 @@ export class CacheManager {
     async buildCacheFromScratch() {
         let unprocessedMarkets = [];
         let markets = await fetchAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED");
+        await this.applyBlacklist(markets);
 
         for (let i = 0; i < markets.length; i++) {
 
@@ -250,6 +253,8 @@ export class CacheManager {
         this.markets = this.markets.sort((a, b) => { return a.createdTime - b.createdTime })
         //Something failed silently (unresponsive console), when I accidentally deleted everything with above loop)
         let allmkts = (await fetchAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED")).reverse();
+        await this.applyBlacklist(allmkts);
+
         let mktsToAdd = [];
 
         let i = 0;
@@ -342,6 +347,31 @@ export class CacheManager {
             cacheCopy[i].aggBets = [];
         }
         await writeFile(`${CACHEDIR}/markets.json`, JSON.stringify(cacheCopy));
+    }
+
+    /**
+     * This function filters lists of markets for markets belonging to the cachemanager's internal list of blacklisted market groups
+     * You might do this because a group's markets are structurally unsuited ot this bot's strategy,
+     * or perhaps a group might request not to have bots trade in their markets.
+     * @param {*} mkts 
+     * @returns 
+     */
+    async applyBlacklist(mkts){
+
+        //note that the main market-finding functionality is applicable to the cache, not arbitrary lists of markets
+        //so we're using a lower level function is calls that can be applied to specific arrays
+
+        for(let i in this.blacklistedGroups){
+            let blacklist = await fetchMarketsInGroup(this.blacklistedGroups[i]);
+            for(let j in blacklist){
+                this.log.write("blacklisted "+blacklist[j].question);
+                if (this.findIndexInList(blacklist[j].id, mkts)!==undefined){
+                    let removedmkt = this.markets.splice(this.findIndexInList(blacklist[j].id, mkts), 1);
+                    this.log.write("removed "+removedmkt.question);
+                }
+            }
+        }
+        return mkts;
     }
 
     /**
