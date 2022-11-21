@@ -483,7 +483,7 @@ export class Whaler {
         // (progresses from oldest to newest, so that as we add bets the newest are at the top)
         for (let i = indexOfLastScan - 1; i >= 0; i--) {
 
-            if (newBets[i].outcome === "YES" || newBets[i].outcome === "NO") {
+            if ((newBets[i].outcome === "YES" || newBets[i].outcome === "NO") && this.cache.blacklist.find((m)=>{return (m.id===newBets[i].contractId);})===undefined) {
 
                 if (!isUnfilledLimitOrder(newBets[i])
                     && !newBets[i].isRedemption
@@ -909,6 +909,7 @@ export class Whaler {
      */
     async performMaintenance() {
 
+        this.cache.updateBlacklist();
         this.cache.backupCache();
         this.cache.saveCache();
         this.timeOfLastBackup = (new Date()).getTime();

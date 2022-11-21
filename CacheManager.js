@@ -43,6 +43,7 @@ export class CacheManager {
 
         this.log = logger;
         this.blacklistedGroups = ["IiNevwTtyukII0eSmPIB"];
+        this.blacklist=[];
         this.users = [];
         this.markets = [];
 
@@ -52,6 +53,8 @@ export class CacheManager {
      * Loads the internal user & market caches from file or generates them from scratch if need be.
      */
     async fillCaches() {
+
+        this.updateBlacklist();
 
         try {
             this.markets = await readFile(new URL(`${CACHEDIR}/markets.json`, import.meta.url));
@@ -350,27 +353,45 @@ export class CacheManager {
     }
 
     /**
-     * This function filters lists of markets for markets belonging to the cachemanager's internal list of blacklisted market groups
-     * You might do this because a group's markets are structurally unsuited ot this bot's strategy,
-     * or perhaps a group might request not to have bots trade in their markets.
-     * @param {*} mkts 
-     * @returns 
+     * This function gets an updated blacklist off the server based on the list of blacklisted groups
+     * @returns the filled out blacklist
      */
-    async applyBlacklist(mkts){
+    async updateBlacklist() {
 
         //note that the main market-finding functionality is applicable to the cache, not arbitrary lists of markets
         //so we're using a lower level function is calls that can be applied to specific arrays
 
-        for(let i in this.blacklistedGroups){
-            let blacklist = await fetchMarketsInGroup(this.blacklistedGroups[i]);
-            for(let j in blacklist){
-                this.log.write("blacklisted "+blacklist[j].question);
-                if (this.findIndexInList(blacklist[j].id, mkts)!==undefined){
-                    let removedmkt = this.markets.splice(this.findIndexInList(blacklist[j].id, mkts), 1);
+        this.blacklist = [];
+        for (let i in this.blacklistedGroups) {
+            let newMkts = await fetchMarketsInGroup(this.blacklistedGroups[i]);
+            for (let j in newMkts) {
+                this.blacklist.push(newMkts[j]);
+            }
+        }
+        this.blacklist = this.sortListById(this.blacklist);
+        return this.blacklist;
+    }
+
+    /**
+     * This function filters lists of markets for markets belonging to the cachemanager's internal list of blacklisted market groups
+     * You might do this because a group's markets are structurally unsuited to this bot's strategy,
+     * or perhaps a group might request not to have bots trade in their markets.
+     * @param {*} mkts 
+     * @returns 
+     */
+    applyBlacklist(mkts){
+
+        //note that the main market-finding functionality is applicable to the cache, not arbitrary lists of markets
+        //so we're using a lower level function it calls that can be applied to specific arrays
+
+            for(let j in this.blacklist){
+                this.log.write("blacklisted "+this.blacklist[j].question);
+                if (this.findIndexInList(this.blacklist[j].id, mkts)!==undefined){
+                    let removedmkt = this.markets.splice(this.findIndexInList(this.blacklist[j].id, mkts), 1);
                     this.log.write("removed "+removedmkt.question);
                 }
             }
-        }
+        
         return mkts;
     }
 
