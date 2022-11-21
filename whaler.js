@@ -370,15 +370,7 @@ export class Whaler {
 
                 await sleep(5);
 
-                // If enough time has elapsed, add a new request to the queue
-                if ((new Date()).getTime() > newBetsExpectedAt + thisCurve[i]) {
-
-                    attempts.push({ "latestBets": latestBets(initialNumOfBets), "sentTime": (new Date()).getTime() });
-                    i++;
-
-                }
-
-                //Check which attempts have been responded to
+                //Check if any attempts have been responded to
                 let j = 0;
                 while (j < attempts.length) {
 
@@ -419,6 +411,14 @@ export class Whaler {
                     else {
                         j++;
                     }
+                }
+
+                // If enough time has elapsed, add a new request to the queue
+                if ((new Date()).getTime() > newBetsExpectedAt + thisCurve[i]) {
+
+                    attempts.push({ "latestBets": latestBets(initialNumOfBets), "sentTime": (new Date()).getTime() });
+                    i++;
+
                 }
             }
 
