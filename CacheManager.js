@@ -197,7 +197,12 @@ export class CacheManager {
         }
 
         searchLog += ("list length: " + (list.length - 1) + "\n");
-        searchLog += ("Immediate Vicinity: " + list[end - 1].id + ", " + list[end].id + ", " + list[end + 1].id);
+        try {
+            searchLog += ("Immediate Vicinity: " + list[end - 1].id + ", " + list[end].id + ", " + list[end + 1].id);
+        } catch (e) {
+//TODO: do this properly
+        }
+
         this.log.write(searchLog);
         return undefined;
     }
@@ -503,6 +508,7 @@ export class CacheManager {
     stripMarket(mkt) {
 
         let cmkt = mkt;
+        cmkt.bets=[];
         cmkt.uniqueTraders = [];
 
         //we may not need to start with fullmarkets at all, if the only thing we're getting from them is bettor ids.

@@ -298,10 +298,12 @@ export class Whaler {
             evalString += " 1 (has starting currentcy amt)";
             noobPoints++;
         }
-        if (theUser.creatorVolumeCached.allTime == 0) {
-            evalString += " 1 (has made no markets)";
-            noobPoints++;
-        }
+        
+        // This attribute was recently removed from the API (2022-11-22)
+        // if (theUser.creatorVolumeCached.allTime == 0) {
+        //     evalString += " 1 (has made no markets)";
+        //     noobPoints++;
+        // }
 
         //return final evaluation
         this.log.write("Evaluated " + theUser.name + ": " + noobPoints + " = " + evalString);
