@@ -185,8 +185,9 @@ export class Whaler {
 
         let evalString = "Evaluated skill of " + bettor.name;
 
-        //special logic for specific users whose trading patterns I know:
-        //BTE has lots of funds and impulsively places large bets which the larger market doesn't agree with, so he's perfect for market making.
+        // special logic for specific users whose trading patterns I know:
+        // BTE has lots of funds and impulsively places large bets which the larger market doesn't agree with, 
+        // so he's perfect for market making.
         if (this.notableUsers[bettor.id] === "BTE") {
             return -0.2;
         }
@@ -210,7 +211,7 @@ export class Whaler {
 
         let profitsCalibrated = 0;
 
-        // I didn't have time to work out a formula to appropriately map the outputs from =1 to 1,
+        // I didn't have time to work out a formula to appropriately map the outputs from -1 to 1,
         // so here's a series of if statements
         if (dailyProfits < -100) {
             profitsCalibrated = -1;
@@ -264,7 +265,9 @@ export class Whaler {
         let noobPoints = 0;
         let evalString = ""
 
-        //how recent the account is:
+        // Check how recent the account is
+        // Note this doesn't quite do the job all by itself,
+        // Some new users start cautiously, or learn the ropes quickly, or are alt accounts of more experienced users
         if (theUser.createdTime > this.clock.getTime() - HOUR * 24) {
             evalString += " 2 (Acct created in the last 24h)";
             noobPoints += 2;
@@ -311,6 +314,9 @@ export class Whaler {
     /**
      * this method collects new bets from the server's /bets API endpoint. 
      * Manifold has turned on and off 15-second API caching a couple times, so this has two modes available.
+     * 
+     * The round trip to the Manifold servers takes a while, so rather than query the endpoint many times in sequence, 
+     * we use an elaborate system in which we send queries even as we wait on the previous ones
      */
     async collectBets() {
 
@@ -318,8 +324,8 @@ export class Whaler {
         let lastBet = undefined;
         let penultimateBet = undefined;
 
+        // here a bunch of various tempos we may desire to query the server according to
         let notACurve = [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000];
-        
         let sparseBellCurve = [-3000, -1000, -100, -35, 0, 35, 100, 1000, 3000];
         let bellCurve = [-3000, -1000, -250, -100, -50, -35, -20, -12, -5, 0, 5, 12, 20, 35, 50, 100, 250, 1000, 3000];
         let extraOffset = -50;
@@ -327,6 +333,8 @@ export class Whaler {
             bellCurve[i] -= extraOffset;
         }
         let cachingInactive = []
+
+
         let num = 0;
         while (num <= CACHING_DURATION) {
             cachingInactive.push(num);
@@ -479,7 +487,7 @@ export class Whaler {
             throw new Error("Backup bet gathering failed.");
         }
 
-        //among the bets collected, scan all the bets made since you last ran this method.
+        // among the bets collected, scan all the bets made since you last ran this method.
         // (progresses from oldest to newest, so that as we add bets the newest are at the top)
         for (let i = indexOfLastScan - 1; i >= 0; i--) {
 
@@ -533,7 +541,8 @@ export class Whaler {
      *      -bets that other traders have already bet against
      * For each trader, an aggregate bet is a single imaginary bet made from the 
      * lowest to highest prices they bought at during the last period of activity.
-     * limited to the range of the total price movement observed
+     * limited to the range of the total price movement observed 
+     * ^ TO-DO: make the code more readable by just useing Math.ceil and Math.floor for that.
      */
     async aggregateBets(bets) {
         let currentMarket = this.cache.getMarketById(bets[0].contractId);
@@ -892,6 +901,12 @@ export class Whaler {
         }
     }
 
+    /**
+     * Checks if a user has placed any bets recently. 
+     * Used to keep an eye on rival bots.
+     * @param {*} username 
+     * @returns 
+     */
     async isUserOnline(username) {
         try {
             let vbets = await fetchUsersBets(username, 1);
@@ -904,8 +919,10 @@ export class Whaler {
         }
         return true;
     }
+
     /**
-     * To be filled in, the function with routine maintenance to be called every five minutes or so.
+     * This function performs routine maintenance on the program, called every 30 minutes at present.
+     * It backs up the cached data, adjusts bot speed, etc.
      */
     async performMaintenance() {
 
@@ -995,7 +1012,7 @@ export class Whaler {
      * If autoLiquidate setting is active, this places a limit order near the probBefore of the counterparty's bet 
      * with the aim of rapidly exiting the newly purchased position with a profit.
      * @param {*} bet Our recent bet whose shares we wish to unload.
-     * @param {*} startingPoint the "baseline price": where the price was before th ecounterparty started betting.
+     * @param {*} startingPoint the "baseline price": where the price was before the counterparty started betting.
      */
     async placeLiquidationOrder(bet, startingPoint) {
         if (!this.settings.autoLiquidate) { return; }
@@ -1027,8 +1044,5 @@ export class Whaler {
         else if (this.settings.mode === "dry-run" || this.settings.mode === "dry-run-w-mock-betting") {
             console.log(sellBet);
         }
-
     }
-
-
 }
