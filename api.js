@@ -24,16 +24,6 @@ export const fetchUserById = async (id) => {
   );
 }
 
-export const fetchUsersBets = async (username, bets) => {
-  let url = `${API_URL}/bets?username=${username}`;
-  if (bets !== undefined) {
-    url += `&limit=${bets}`;
-  }
-  return fetch(url).then(
-    (res) => res.json()
-  )
-}
-
 export const fetchMe = async (key) => {
   return fetch(`${API_URL}/me`, {
     headers: {
@@ -51,13 +41,6 @@ export const fetchFullMarket = async (id) => {
   return market
 }
 
-export const fetchBetsByMarket = async (id, limit) => {
-  const bets = await fetch(`${API_URL}/bets?contractId=${id}`).then(
-    (res) => res.json()
-  )
-  return bets
-}
-
 export const fetchMarketsInGroup = async (id) => {
   const markets = await fetch(`${API_URL}/group/by-id/${id}/markets`).then(
     (res) => res.json()
@@ -72,6 +55,34 @@ export const fetchMarketBySlug = async (slug) => {
   )
 
   return market
+}
+
+export const slugToId = async (slug) => {
+  const market = await fetch(`${API_URL}/slug/${slug}`).then(
+    (res) => res.json().contractId
+  )
+  return market
+}
+
+export const fetchBetsByMarket = async (id, limit) => {
+  const bets = await fetch(`${API_URL}/bets?contractId=${id}`).then(
+    (res) => res.json()
+  )
+  return bets
+}
+
+export const fetchUsersBets = async (username, bets) => {
+  let url = `${API_URL}/bets?username=${username}`;
+  if (bets !== undefined) {
+    url += `&limit=${bets}`;
+  }
+  return fetch(url).then(
+    (res) => res.json()
+  )
+}
+
+export const fetchBets = async (limit = 1000, before) => {
+
 }
 
 export const fetchMarkets = async (limit = 1000, before) => {
@@ -92,6 +103,7 @@ export const fetchMarkets = async (limit = 1000, before) => {
 
   return markets
 }
+
 
 export const fetchAllMarkets = async (typeFilters, outcomeFilter) => {
   const allMarkets = []
@@ -123,6 +135,8 @@ export const fetchAllMarkets = async (typeFilters, outcomeFilter) => {
 
     }
   }
+
+
   return allMarkets
 }
 
