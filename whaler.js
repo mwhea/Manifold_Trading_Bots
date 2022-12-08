@@ -144,14 +144,19 @@ export class Whaler {
         }
 
         //The following users have the expertise or inclination to exploit a bot.
-        if (this.notableUsers[bettor.id] === "Yev"
+        if (this.notableUsers[bettor.id] === "anti-bot bot") {
+        searchLog += " - 0.99 (extremely dangerous users)";
+        returnVal -= .99;
+    }
+        else if (this.notableUsers[bettor.id] === "Yev"
             || this.notableUsers[bettor.id] === "NotMyPresident"
             || this.notableUsers[bettor.id] === "GeorgeVii") {
             searchLog += " - 0.25 (dangerous users)";
             returnVal -= .25;
         }
         if (this.notableUsers[mkt.creatorId] === "Yev"
-            || this.notableUsers[mkt.creatorId] === "NotMyPresident") {
+            || this.notableUsers[mkt.creatorId] === "NotMyPresident"
+            || this.notableUsers[mkt.creatorId] === "anti-bot bot") {
             searchLog += " - 0.66 (extremely dangerous creators)";
             returnVal -= .66;
         }
