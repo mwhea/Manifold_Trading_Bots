@@ -193,6 +193,12 @@ export const placeBet = (bet, key) => {
   }).then((res) => res.json())
 }
 
+/**
+ * Cancels a limit order
+ * @param {*} betId : the id of the limit order
+ * @param {*} key : user's API key
+ * @returns 
+ */
 export const cancelBet = (betId, key) => {
   return fetch(`${API_URL}/bet/cancel/${betId}`, {
     method: 'POST',

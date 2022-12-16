@@ -261,12 +261,14 @@ export class CacheManager {
         this.markets = this.markets.sort((a, b) => { return a.createdTime - b.createdTime })
         //Something failed silently (unresponsive console), when I accidentally deleted everything with above loop)
         let allmkts = (await fetchAllMarkets(["BINARY", "PSEUDO_NUMERIC"], "UNRESOLVED")).reverse();
+            
         await this.applyBlacklist(allmkts);
 
         let mktsToAdd = [];
 
         let i = 0;
-        console.log("started reviewing mkts")
+
+        this.log.write("started reviewing mkts")
         while (i < this.markets.length || i < allmkts.length) {
 
             if (i > this.markets.length - 1) {

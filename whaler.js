@@ -341,7 +341,6 @@ export class Whaler {
         }
         let cachingInactive = []
 
-
         let num = 0;
         while (num <= CACHING_DURATION) {
             cachingInactive.push(num);
@@ -691,11 +690,13 @@ export class Whaler {
                 if (thisAgg.probAfter < probFinal) {
                     thisAgg.probAfter = probFinal;
                 }
-                //when this successfully catches misleading/illusory NO bets, it manifests as a very confusing 
-                //output: a NO bet that increases the price, you'll want to add something that clarifies
-                //so bot operators reading the logs understand what they're looking at
-                //but the following doesn't work just yet because even negated bets are useful for some later calculations
-                //if (thisAgg.probBefore <= thisAgg.probAfter) { thisAgg.outcome = "NEGATED"; }
+                // when this successfully catches misleading/illusory NO bets, 
+                // e.g. a NO bet that's just reverting a previous swing, or which has since been undone, 
+                // it manifests as a very confusing 
+                // output: a NO bet that increases the price, you'll want to add something that clarifies
+                // so bot operators reading the logs understand what they're looking at
+                // but the following doesn't work just yet because even negated bets are useful for some later calculations
+                // if (thisAgg.probBefore <= thisAgg.probAfter) { thisAgg.outcome = "NEGATED"; }
             }
             //visa versa the above
             else if (thisAgg.outcome === 'YES') {
