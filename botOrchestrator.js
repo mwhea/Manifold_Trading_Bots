@@ -8,10 +8,6 @@ import {
 } from "./Whaler.js";
 
 import {
-    velocitySlayer
-} from "./velocitySlayer.js";
-
-import {
     readFile,
     writeFile
 } from 'fs/promises';
