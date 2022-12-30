@@ -234,8 +234,8 @@ export class CacheManager {
             if (i % 100 === 0) { this.log.write("pushed " + i + " markets"); }
             unprocessedMarkets.push(fetchFullMarket(markets[i].id));
 
-            //slight delay to the server doesn't reject requests due to excessive volume.
-            await sleep(20);
+            //slight delay so the server doesn't reject requests due to excessive volume.
+            await sleep(50);
 
         }
 
@@ -272,8 +272,9 @@ export class CacheManager {
         while (i < this.markets.length || i < allmkts.length) {
 
             if (i > this.markets.length - 1) {
-                mktsToAdd.push(this.cachifyMarket(allmkts[i]));
+                mktsToAdd.push(await this.cachifyMarket(allmkts[i]));
                 this.log.sublog("Adding market: " + allmkts[i].question);
+                sleep(50);
             }
             else if (this.markets[i].id === allmkts[i].id) {
 
