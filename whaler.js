@@ -130,8 +130,8 @@ export class Whaler {
 
         let socialProofAdjustment = (mkt.uniqueTraders.length * 0.05) - .35;
         if (mkt.uniqueTraders.length > UT_THRESHOLD) { socialProofAdjustment = (UT_THRESHOLD * 0.05) - .35; }
-        if (socialProofAdjustment >= 0) { searchLog += " + " + socialProofAdjustment; }
-        else { searchLog += " - " + Math.abs(socialProofAdjustment); }
+        if (socialProofAdjustment >= 0) { searchLog += " + " + roundToPercent(socialProofAdjustment); }
+        else { searchLog += " - " + roundToPercent(Math.abs(socialProofAdjustment)); }
         searchLog += " (num unique traders)";
         returnVal += socialProofAdjustment;
 
@@ -171,7 +171,7 @@ export class Whaler {
             returnVal -= .25;
         }
 
-        this.log.write(searchLog + " = " + returnVal);
+        this.log.write(searchLog + " = " + roundToPercent(returnVal));
 
         if (returnVal < 0) { return 0; }
         else if (returnVal > 1) { return 1; }
@@ -875,7 +875,6 @@ export class Whaler {
                                     bet.id = (await placeBet(bet, process.env.APIKEY).then(
                                         (resjson) => {
                                             this.log.write("bet placed: " + resjson.betId);
-                                            console.log(resjson);
                                             let tryAgainIn = 10;
                                             while (tryAgainIn != 0) {
                                                 try {
