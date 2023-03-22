@@ -847,12 +847,12 @@ export class Whaler {
                     if (betAlpha < 0) { betAlpha = 0; }
 
                     this.log.write("should I bet? | alpha sought | noobScore | bettorskill | trustworthy? | buyingPower");
-                    this.log.write(roundToPercent(shouldPlaceBet).padEnd(13) + " | "
-                        + roundToPercent(betAlpha).padEnd(12) + " | "
-                        + roundToPercent(thisAgg.noobScore).padEnd(9) + " | "
-                        + roundToPercent(thisAgg.bettorAssessment).padEnd(11) + " | "
-                        + roundToPercent(thisAgg.trustworthiness).padEnd(12) + " | "
-                        + roundToPercent(thisAgg.buyingPower));
+                    this.log.write(roundToPercent(shouldPlaceBet).toString().padEnd(13) + " | "
+                        + roundToPercent(betAlpha).toString().padEnd(12) + " | "
+                        + roundToPercent(thisAgg.noobScore).toString().padEnd(9) + " | "
+                        + roundToPercent(thisAgg.bettorAssessment).toString().padEnd(11) + " | "
+                        + roundToPercent(thisAgg.trustworthiness).toString().padEnd(12) + " | "
+                        + roundToPercent(thisAgg.buyingPower).toString());
 
                     if ((shouldPlaceBet >= 1 && betAlpha * Math.abs(betDifference) * thisAgg.buyingPower > 0.01) || this.settings.mode === "dry-run-w-mock-betting") {
 
