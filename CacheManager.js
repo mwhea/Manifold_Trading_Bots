@@ -203,7 +203,7 @@ export class CacheManager {
 //TODO: do this properly
         }
 
-        this.log.write(searchLog);
+        //this.log.write(searchLog);
         return undefined;
     }
 
@@ -287,6 +287,7 @@ export class CacheManager {
                     this.log.write(this.markets[i].question + " : " + allmkts[i].question);
                     try {
                         let reportString = "Updating market " + i + " - " + allmkts[i].question + ": " + this.markets[i].uniqueTraders.length;
+                        //TODO: make this more graceful
                         await this.fetchAndSetUniqueTraders(this.markets[i]);
                         reportString += ` ==> ${this.markets[i].uniqueTraders.length}`;
                         this.log.sublog(reportString);
