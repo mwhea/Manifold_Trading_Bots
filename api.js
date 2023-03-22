@@ -1,8 +1,8 @@
 import 'dotenv/config'
 import fetch from 'node-fetch'
-import{
+import {
   sleep
-  } from './utility_functions.js';
+} from './utility_functions.js';
 
 const API_URL = process.env.APIURL;
 
@@ -36,7 +36,11 @@ export const fetchMe = async (key) => {
 
 export const fetchFullMarket = async (id) => {
   const market = await fetch(`${API_URL}/market/${id}`).then(
-    (res) => res.json()
+    (res) => {
+      let rVal = res.json();
+      if (rVal === undefined) { rVal = res; }
+      return rVal;
+    }
   )
   return market
 }
@@ -65,10 +69,15 @@ export const slugToId = async (slug) => {
 }
 
 export const fetchBetsByMarket = async (id, limit) => {
-  const bets = await fetch(`${API_URL}/bets?contractId=${id}`).then(
-    (res) => res.json()
-  )
-  return bets
+  try {
+    const bets = await fetch(`${API_URL}/bets?contractId=${id}`).then(
+      (res) => res.json()
+    )
+    return bets
+  } catch (e) {
+    console.log(e)
+    return [];
+  }
 }
 
 export const fetchUsersBets = async (username, bets) => {
@@ -89,17 +98,27 @@ export const fetchMarkets = async (limit = 1000, before) => {
 
   let results = null;
   let markets = null;
-  try {
-    markets = await fetch(
-      before
+  let failed = true;
+  while (failed) {
+    try {
+      markets = await fetch(
+        before
+          ? `${API_URL}/markets?limit=${limit}&before=${before}`
+          : `${API_URL}/markets?limit=${limit}`
+      ).then((res) => { results = res; return res.json(); })
+      markets[markets.length - 1].id
+      failed = false;
+    }
+    catch (e) {
+      console.log(e);
+      console.log(results);
+      console.log(before
         ? `${API_URL}/markets?limit=${limit}&before=${before}`
-        : `${API_URL}/markets?limit=${limit}`
-    ).then((res) => { results = res; return res.json(); })
+        : `${API_URL}/markets?limit=${limit}`);
+      sleep(5000)
+    }
   }
-  catch (e) {
-    console.log(e);
-    console.log(results);
-  }
+
 
   return markets
 }
@@ -107,12 +126,18 @@ export const fetchMarkets = async (limit = 1000, before) => {
 
 export const fetchAllMarkets = async (typeFilters, outcomeFilter) => {
   const allMarkets = []
-  let before = 0
+  let before = false
 
   while (true) {
     const markets = await fetchMarkets(1000, before)
-
-    allMarkets.push(...markets)
+    try {
+      allMarkets.push(...markets)
+    }
+    catch (e) {
+      console.log(e)
+      console.log(before)
+      console.log(markets)
+    }
     before = markets[markets.length - 1].id
 
     if (markets.length < 1000) break
@@ -149,8 +174,8 @@ export const fetchUsers = async (limit = 1000, before) => {
       before
         ? `${API_URL}/users?limit=${limit}&before=${before}`
         : `${API_URL}/users?limit=${limit}`
-    ).then((res) => { try{results = res.json();}catch(e){console.log(e)}; return results; })
-    .catch((err)=>{console.log(err)})
+    ).then((res) => { try { results = res.json(); } catch (e) { console.log(e) }; return results; })
+      .catch((err) => { console.log(err) })
   }
   catch (e) {
     console.log(e);
@@ -170,7 +195,7 @@ export const fetchAllUsers = async () => {
       await sleep(50);
       const users = await fetchUsers(1000, before)
 
-      console.log("adding users " + before + " to " + (before + 1000));
+      console.log("adding users " + before + " onwards");
       allUsers.push(...users)
       before = users[users.length - 1].id
 
