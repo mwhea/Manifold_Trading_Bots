@@ -293,8 +293,9 @@ export class CacheManager {
                     }
                     catch (e) {
                         console.log(e);
+                        this.log.write("ERROR: Failed to Update unique bettors of: " + this.markets[i].question);
+                       // throw e;
 
-                        throw new Error("Failed to Update unique bettors of: " + this.markets[i].question);
                     }
                 }
             } else {
