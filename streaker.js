@@ -5,8 +5,9 @@ import {
 } from './api.js';
 
 const dummyMarkets = [
-    await fetchMarketBySlug("market-resolution-is-yes-but-undox"),
-    await fetchMarketBySlug("this-question-will-resolve-positive-5c753f5a33e1")
+    // await fetchMarketBySlug("market-resolution-is-yes-but-undox"),
+    // await fetchMarketBySlug("this-question-will-resolve-positive-5c753f5a33e1"),
+    await fetchMarketBySlug("this-market-resolves-yes-except-if")
 ];
 
 export class Streaker {
@@ -39,6 +40,7 @@ export class Streaker {
                         outcome: "YES",
                         amount: 1
                     }
+                    console.log(await placeBet(bet, key));
                 } while ((await placeBet(bet, key)).betId === undefined);
             }
         }
