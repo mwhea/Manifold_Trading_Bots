@@ -373,7 +373,9 @@ export class CacheManager {
         for (let i in this.blacklistedGroups) {
             let newMkts = await fetchMarketsInGroup(this.blacklistedGroups[i]);
             for (let j in newMkts) {
+                if (!newMkts[j].isResolved){
                 this.blacklist.push(newMkts[j]);
+                }
             }
         }
         this.blacklist = this.sortListById(this.blacklist);
