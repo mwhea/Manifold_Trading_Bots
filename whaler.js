@@ -406,6 +406,15 @@ export class Whaler {
                         else {
                             whiffs--;
 
+                            //TODO: crashed on theseBets[0].id. I've encased in a trycatch for now, but try to get to the bottom of this.
+                            try{
+                                theseBets[0].id;
+                            }
+                            catch (e){
+                                console.log(e);
+                                console.log(theseBets);
+                            }
+
                             if ( //if it's a bet we haven't seen yet
                                 lastBet != theseBets[0].id
                                 && penultimateBet != theseBets[0].id
