@@ -285,17 +285,19 @@ export class Whaler {
             noobPoints++;
         }
 
+        var betSizingPoints = 0;
         //new users like to place bets in big round numbers, and sometimes bet their entire balance on a single question.
         for (let i in bets) {
             if (bets[i].amount === 1000 || bets[i].amount === 500) {
                 evalString += " 2 (Placed a bet of size 1000)";
-                if (noobPoints === 0) { noobPoints += 2; }
+                if (betSizingPoints === 0) { betSizingPoints += 2; }
             }
             else if (bets[i].amount % 100 == 0 || bets[i].amount % 250 == 0) {
                 evalString += " 1 (Placed bets in multiples of 100)";
-                if (noobPoints === 0) { noobPoints += 1; } //some hacky logic to make sure you don't triple count a string of 100M bets
+                if (betSizingPoints === 0) { betSizingPoints += 1; } //make sure you don't triple count a string of 100M bets
             }
         }
+        noobPoints+=betSizingPoints;
 
         // some circumstantial Manifold familiarity indicators
         if ((theUser.totalDeposits > 950 && theUser.totalDeposits < 1050) || (theUser.totalDeposits > 1450 && theUser.totalDeposits < 1550)) {
