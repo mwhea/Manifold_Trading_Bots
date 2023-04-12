@@ -507,12 +507,11 @@ export class Whaler {
         // (progresses from oldest to newest, so that as we add bets the newest are at the top)
         for (let i = indexOfLastScan - 1; i >= 0; i--) {
 
-            if ((newBets[i].outcome === "YES" || newBets[i].outcome === "NO") && this.cache.blacklist.find((m)=>{return (m.id===newBets[i].contractId);})===undefined) {
+            if ((newBets[i].outcome === "YES" || newBets[i].outcome === "NO") && this.cache.blacklist.find((m) => { return (m.id === newBets[i].contractId); }) === undefined) {
 
                 if (!isUnfilledLimitOrder(newBets[i])
                     && !newBets[i].isRedemption
-                    // && !(this.notableUsers[newBets[i].userId] === "v"
-
+                    //TODO: you may want to exclude bets from rival bots here, as they might inadvertently impart social proof to a bad bet.
                 ) {
                     let parentMarket = this.cache.getMarketById(newBets[i].contractId);
                     if (parentMarket === undefined) {
