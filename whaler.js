@@ -63,8 +63,6 @@ export class Whaler {
         this.settings = whalerSettings;
         this.adjustedSpeed = this.settings.speed;
 
-        this.notableUsers = readFile(new URL('./notableUsers.json', import.meta.url));
-
         this.lastScannedBet = undefined;
 
         this.clock = new Date();
@@ -90,7 +88,6 @@ export class Whaler {
     async additionalConstruction() {
 
         let isCacheFull = this.cache.fillCaches();
-        this.notableUsers = JSON.parse(await this.notableUsers);
 
         this.lastScannedBet = (await latestBets(1))[0].id;
 
