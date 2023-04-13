@@ -246,6 +246,14 @@ export class Whaler {
         }
 
         evalString += ", daily profits (calibrated): " + profitsCalibrated;
+
+        // Although this is mostly encompassed by insider trading risk in the trustworthiness eval, there are situations where it might still be useful. Such as when trader number overcomes the negative from insider risk.
+        if (bettor.id === mkt.creatorId) {
+            profitsCalibrated+=0.15;
+            if (profitsCalibrated>1){profitsCalibrated=1;}
+            evalString += " + 0.15 (insider)";
+        }
+
         this.log.write(evalString);
 
         return profitsCalibrated;
