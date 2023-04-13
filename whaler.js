@@ -933,7 +933,8 @@ export class Whaler {
             }
         }
         catch (e) {
-            console.log(`Failed to get ${username}'s bets. Defaulting to 'online'.`);
+            console.log(`Failed to get ${username}'s bets. Defaulting to 'offline'.`);
+            return false;
         }
         return true;
     }
