@@ -8,16 +8,23 @@ export const RIVAL_BOT = 930845;
 export const ACC = 2384278;
 
 
-export function userHasTrait(uid, prop, value) {
+export function getUserTrait(uid, prop) {
 
     let thisUser = notableUsers.find((u) => { return (u.id === uid); });
-    if (thisUser === undefined) { 
-        return false; 
+    if (thisUser === undefined) {
+        return undefined;
     }
     if (thisUser.altOf !== undefined) {
         thisUser = notableUsers.find((u) => { return (u.id === thisUser.altOf) });
     }
-    if (thisUser[prop]===value){
+    return thisUser[prop];
+
+}
+
+export function checkUserTrait(uid, prop, value) {
+
+
+    if (getUserTrait(uid, prop) === value) {
         return true;
     }
     return false;
@@ -31,12 +38,12 @@ const notableUsers = [
         "name": "Botlab",
         "type": THIS_BOT,
         "insiderTradingRisk": SAFE
-    },    
+    },
     {
         "id": "jO7sUhIDTQbAJ3w86akzncTlpRG2",
         "name": "Michael Wheatley",
         "insiderTradingRisk": SAFE
-    },    
+    },
     {
         "id": "w1knZ6yBvEhRThYPEYTwlmGv7N33",
         "name": "v",
@@ -45,6 +52,11 @@ const notableUsers = [
     {
         "id": "BhNkw088bMNwIFF2Aq5Gg9NTPzz1",
         "name": "acc",
+        "type": RIVAL_BOT
+    },
+    {
+        "id": "dNgcgrHGn8ZB30hyDARNtbjvGPm1",
+        "name": "arr", //an arbitrage bot
         "type": RIVAL_BOT
     },
     {
@@ -66,12 +78,23 @@ const notableUsers = [
     {
         "id": "4JuXgDx47xPagH5mcLDqLzUSN5g2",
         "name": "BTE",
-        "insiderTradingRisk": SAFE
+        "insiderTradingRisk": SAFE,
+        // special logic for specific users whose trading patterns I know:
+        // BTE has lots of funds and impulsively places large bets which the larger market doesn't agree with, 
+        // so he's perfect for market making.
+        "skillOverride": -0.2
     },
     {
         "id": "prSlKwvKkRfHCY43txO4pG1sFMT2",
         "altOf": "4JuXgDx47xPagH5mcLDqLzUSN5g2",
         "name": "BTE_FTP"
+    },
+    {
+        "id": "XebdFvo6vqO5WGXTsWYVdSH3WNc2",
+        "name": "Tornado",
+        "skillOverride": -0.4,
+        "user": DANGEROUS,
+        "creator": DANGEROUS
     },
     {
         "id": "Y8xXwCCYe3cBCW5XeU8MxykuPAY2",

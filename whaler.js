@@ -31,7 +31,8 @@ import {
     RIVAL_BOT,
     ACC,
     SAFE,
-    userHasTrait
+    getUserTrait,
+    checkUserTrait
 } from "./notableUsers.js"
 
 //Constants
@@ -119,7 +120,7 @@ export class Whaler {
         //don't bet against the market creator on their own market. Insider trading or market manipulation.
         if (mkt.creatorId === bettor.id) {
             //exclude some trustworthy market creators
-            if (!(userHasTrait(bettor.id, "insiderTradingRisk", SAFE))) {
+            if (!(checkUserTrait(bettor.id, "insiderTradingRisk", SAFE))) {
                 searchLog += " - 0.75 (insider trading)"
                 returnVal -= .75;
             }
@@ -152,19 +153,19 @@ export class Whaler {
         }
 
         //The following users have the expertise or inclination to exploit a bot.
-        if (userHasTrait(bettor.id, "user", HIGHLY_DANGEROUS)) {
+        if (checkUserTrait(bettor.id, "user", HIGHLY_DANGEROUS)) {
         searchLog += " - 0.99 (extremely dangerous users)";
         returnVal -= .99;
     }
-        else if (userHasTrait(bettor.id, "user", DANGEROUS)) {
+        else if (checkUserTrait(bettor.id, "user", DANGEROUS)) {
             searchLog += " - 0.25 (dangerous users)";
             returnVal -= .25;
         }
-        if (userHasTrait(bettor.id, "creator", HIGHLY_DANGEROUS)) {
+        if (checkUserTrait(bettor.id, "creator", HIGHLY_DANGEROUS)) {
             searchLog += " - 0.66 (extremely dangerous creators)";
             returnVal -= .66;
         }
-        else if (userHasTrait(bettor.id, "creator", DANGEROUS)
+        else if (checkUserTrait(bettor.id, "creator", DANGEROUS)
         ) {
             searchLog += " - 0.25 (dangerous creators)";
             returnVal -= .25;
@@ -189,15 +190,9 @@ export class Whaler {
 
         let evalString = "Evaluated skill of " + bettor.name;
 
-        // special logic for specific users whose trading patterns I know:
-        // BTE has lots of funds and impulsively places large bets which the larger market doesn't agree with, 
-        // so he's perfect for market making.
-        if (userHasTrait(bettor.id, "name", "BTE")) {
-            return -0.2;
-        }
-
-        if (bettor.id === mkt.creatorId) {
-            let bettorAssessment = "insider";
+        let skillOverride = getUserTrait(bettor.id, "skillOverride")
+        if (skillOverride!==undefined) {
+            return skillOverride;
         }
 
         let dailyProfits = (bettor.profitCached.allTime) / ((this.clock.getTime() - bettor.createdTime) / (HOUR * 24));
@@ -511,7 +506,7 @@ export class Whaler {
 
                 if (!isUnfilledLimitOrder(newBets[i])
                     && !newBets[i].isRedemption
-                    //TODO: you may want to exclude bets from rival bots here, as they might inadvertently impart social proof to a bad bet.
+                    && !checkUserTrait(newBets[i].userId, "type", RIVAL_BOT) //you may want to exclude bets from rival bots here, as they might inadvertently impart social proof to a bad bet. And just generally slow things down.
                 ) {
                     let parentMarket = this.cache.getMarketById(newBets[i].contractId);
                     if (parentMarket === undefined) {
@@ -589,7 +584,7 @@ export class Whaler {
             // we also stop at our last bet on the assumption that we successfully corrected the price. (not perfect behaviour, but fine for now)
             // in the future we will also stop at the last bet by a high-skill trader.
             (betToScan.createdTime > inactivityCutoff)
-            && (!(userHasTrait(betToScan.userId, "type", THIS_BOT) && !betToScan.isRedemption))
+            && (!(checkUserTrait(betToScan.userId, "type", THIS_BOT) && !betToScan.isRedemption))
         ) {
 
             inactivityCutoff = betToScan.createdTime - (1000 * 60 * 5);
@@ -597,8 +592,8 @@ export class Whaler {
             if ( //don't collect the following types of bets
                 !isUnfilledLimitOrder(betToScan)
                 && !betToScan.isRedemption
-                && !(userHasTrait(betToScan.userId, "type", THIS_BOT))
-                && !(userHasTrait(betToScan.userId, "type", RIVAL_BOT))
+                && !(checkUserTrait(betToScan.userId, "type", THIS_BOT))
+                && !(checkUserTrait(betToScan.userId, "type", RIVAL_BOT))
             ) {
                 // find/create the appropriate aggregate to add this to
                 // we're deciding who to bet against in part based on user characteristics, so each user's
@@ -663,7 +658,7 @@ export class Whaler {
             probStart = betToScan.probAfter;
 
             //this is where we collect up-to-date info about outgoing bets of ours: when they show up in the bet stream.
-            if (userHasTrait( betToScan.userId, "type", THIS_BOT) && !betToScan.isRedemption) {
+            if (checkUserTrait( betToScan.userId, "type", THIS_BOT) && !betToScan.isRedemption) {
 
                 let alreadyDetected = false;
                 for (let i in this.safeguards.betsPlaced) {
