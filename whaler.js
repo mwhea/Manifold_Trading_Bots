@@ -132,7 +132,6 @@ export class Whaler {
             returnVal -= 300;
         }
         //it's probably not a manipulated market if it has lots of unique traders.
-        let numUTs = 0;
         if (mkt.uniqueTraders.length < UT_THRESHOLD && mkt.uniqueTraders.find((o) => { return o === bettor.id; }) === undefined) {
             mkt.uniqueTraders.push(bettor.id);
         }
