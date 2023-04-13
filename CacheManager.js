@@ -427,7 +427,7 @@ export class CacheManager {
             throw err;
         }
 
-        if (bets != undefined) {
+        if (bets !== undefined) {
 
             for (let i = 0; i < bets.length && mkt.uniqueTraders.length < UT_THRESHOLD; i++) {
                 if (mkt.uniqueTraders.find((o) => { return o === bets[i].userId; }) === undefined) {

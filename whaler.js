@@ -684,20 +684,18 @@ export class Whaler {
         for (let i in aggregateBets) {
 
             let thisAgg = aggregateBets[i];
-            if (thisAgg.probBefore > thisAgg.probAfter) { thisAgg.outcome = "" + "NO"; }
-            if (thisAgg.probBefore < thisAgg.probAfter) { thisAgg.outcome = "" + "YES"; }
+            if (thisAgg.probBefore > thisAgg.probAfter) { thisAgg.outcome = "NO"; }
+            if (thisAgg.probBefore < thisAgg.probAfter) { thisAgg.outcome = "YES"; }
 
             //if it's a "NO" bet
             if (thisAgg.outcome === 'NO') {
 
                 //any big swings may be an illusion if they haven't brought the price any lower than it was at the start of the latest flurry of bets
-                if (thisAgg.probBefore > probStart) {
-                    thisAgg.probBefore = probStart;
-                }
+                thisAgg.probBefore = Math.min(thisAgg.probBefore, probStart)
+
                 //or if the movement has since been reversed, probably by other bots, maybe from wash trading.
-                if (thisAgg.probAfter < probFinal) {
-                    thisAgg.probAfter = probFinal;
-                }
+                thisAgg.probAfter = Math.max(thisAgg.probAfter, probFinal);
+
                 // when this successfully catches misleading/illusory NO bets, 
                 // e.g. a NO bet that's just reverting a previous swing, or which has since been undone, 
                 // it manifests as a very confusing 
@@ -709,14 +707,9 @@ export class Whaler {
             //visa versa the above
             else if (thisAgg.outcome === 'YES') {
 
-                if (thisAgg.probBefore < probStart) {
-                    thisAgg.probBefore = probStart;
-                }
+                thisAgg.probBefore = Math.max(thisAgg.probBefore, probStart)
+                thisAgg.probAfter = Math.min(thisAgg.probAfter, probFinal);
 
-                if (thisAgg.probAfter > probFinal) {
-                    thisAgg.probAfter = probFinal;
-                }
-                //if (thisAgg.probBefore >= thisAgg.probAfter) { thisAgg.outcome = "NEGATED"; }
             }
 
             //let bettor = getUserById(thisAgg.userId);
@@ -956,24 +949,24 @@ export class Whaler {
             maintenanceReport += `Base speed: ${newSpeed} (Cheap internet, using fast base rate) ==> `;
         }
 
-        let botsOnline = { "v": await this.isUserOnline("v"), "acc": await this.isUserOnline("acc") };
+        let activityReports = { "v": await this.isUserOnline("v"), "acc": await this.isUserOnline("acc") };
 
         //if v hasn't bet in 4 hours, slow down.
-        if (botsOnline.acc === true && botsOnline.v === false) {
+        if (activityReports.acc && !activityReports.v) {
             newSpeed = 500;
         }
-        else if (botsOnline.acc === false && botsOnline.v === false) {
+        else if (!activityReports.acc && !activityReports.v) {
             newSpeed = 100;
         }
-        else if (botsOnline.v === true) {
+        else if (activityReports.v) {
             newSpeed /= 4;
         }
 
         maintenanceReport += `Adjusted Speed: ${newSpeed} `;
         maintenanceReport += "( Bots online: [ ";
-        if (botsOnline.acc === true) { maintenanceReport += "acc"; }
-        if (botsOnline.v === true && botsOnline.acc === true) { maintenanceReport += ", "; }
-        if (botsOnline.v === true) { maintenanceReport += "v"; }
+        if (activityReports.acc ) { maintenanceReport += "acc"; }
+        if (activityReports.v && activityReports.acc ) { maintenanceReport += ", "; }
+        if (activityReports.v ) { maintenanceReport += "v"; }
         maintenanceReport += " ] )";
 
         this.log.write(maintenanceReport);
