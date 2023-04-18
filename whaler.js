@@ -44,6 +44,7 @@ import { UT_THRESHOLD } from "./CacheManager.js"
 const MIN_P_MOVEMENT = .0375;
 const CACHING_DURATION = 15000;
 const OUTGOING_LIMIT = 3500;
+const BACKUP_EVERY = 3 * HOUR;
 //speeds: (run every n milliseconds)
 const HYPERDRIVE = 10;
 const FAST = 50;
@@ -452,7 +453,7 @@ export class Whaler {
             if (!caughtOne) {
 
                 this.log.write("....");
-                if ((new Date()).getTime() > this.timeOfLastBackup + 30 * MINUTE) {
+                if ((new Date()).getTime() > this.timeOfLastBackup + BACKUP_EVERY) {
                     this.performMaintenance();
                 }
             }
@@ -1008,13 +1009,13 @@ export class Whaler {
         }
         report += ("Outgoing cash: " + outgoingCash)
         this.log.write(report);
-        //this.log.close();
+        
         if (outgoingCash > OUTGOING_LIMIT) {
-            await this.cache.saveCache();
-            throw new Error("Exceeded outgoing cash limit");
+            this.log.write("Exceeded outgoing cash limit");
+            await this.gracefulShutdown();
+
         }
 
-        //throw new Error("Overspent on a single market");
     }
 
     /**
@@ -1053,5 +1054,10 @@ export class Whaler {
         else if (this.settings.mode === "dry-run" || this.settings.mode === "dry-run-w-mock-betting") {
             console.log(sellBet);
         }
+    }
+
+    async gracefulShutdown(){
+        
+        await this.cache.saveCache();
     }
 }
