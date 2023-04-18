@@ -518,16 +518,8 @@ export class CacheManager {
         cmkt.bets=[];
         cmkt.uniqueTraders = [];
 
-        //we may not need to start with fullmarkets at all, if the only thing we're getting from them is bettor ids.
-        // delete cmkt.comments;
-        // delete cmkt.answers;
-        // delete cmkt.description;
-        // delete cmkt.textDescription;
-
-        //removing small data values even litemarkets have, just to save a modicum of extra space.
+        //removing unimportant properties, just to save a modicum of extra space.
         delete cmkt.creatorAvatarUrl;
-        delete cmkt.url;
-        delete cmkt.pool;
         delete cmkt.tags;
         delete cmkt.mechanism;
         delete cmkt.volume;
