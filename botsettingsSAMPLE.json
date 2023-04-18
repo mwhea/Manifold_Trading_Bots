@@ -19,9 +19,5 @@
         "accountsToMaintain": [
             "Botlab"
         ]
-    },
-    "velocitySlayer":{
-        "active" : false,
-        "runEvery": null
     }
 } 

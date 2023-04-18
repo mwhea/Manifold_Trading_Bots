@@ -30,7 +30,6 @@ let botSettings = JSON.parse(
 const HOUR = 60 * 60 * 1000;
 botSettings.streaker.runEvery = HOUR * 6;
 botSettings.attritionTrader.runEvery = HOUR;
-botSettings.velocitySlayer.runEvery = 1000 * 20;
 
 let cycles = 0;
 //let runTill = new Date('09/25/2022 07:00')
@@ -48,16 +47,12 @@ while (true) {
     //attritionTrade();
 
     if (botSettings.whaler.active) {
-       await whaler.collectBets();
-    }
-
-    if (botSettings.velocitySlayer.active && cycles * CYCLETIME > botSettings.velocitySlayer.runEvery * vsRuns) {
         try {
-            await velocitySlayer();
-            vsRuns++;
+            await whaler.collectBets();
         }
         catch (e) {
-            console.log(e);
+            whaler.log.write(e.message);
+            whaler.gracefulShutdown();
         }
     }
 
