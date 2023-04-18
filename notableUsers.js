@@ -168,11 +168,11 @@ const notableUsers = [
         "altOf": "n820DjHGX9dKsrv0jHIJV8xmDgr2"//ZZZZZZZ
     },
     {
-        "id": "wuOtYy52f4Sx4JFfT85LpizVGsx1",
+        "id": "wuOtYy52f4Sx4JFfT85LpizVGsx1", //Jeremy K / Travis Wiley
         "altOf": "n820DjHGX9dKsrv0jHIJV8xmDgr2"//ZZZZZZZ
     },
     {
-        "id": "I8VZW5hGw9cfIeWs7oQJaNdFwhL2",
+        "id": "I8VZW5hGw9cfIeWs7oQJaNdFwhL2", //anton
         "altOf": "n820DjHGX9dKsrv0jHIJV8xmDgr2"//ZZZZZZZ
     },
     {
