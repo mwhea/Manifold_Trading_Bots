@@ -985,7 +985,6 @@ export class Whaler {
         //TODO: Measure and print bet latency
         this.log.write("Bet latency: " + (bet.createdTime - this.timeOfLastBet));
         this.safeguards.betsPlaced.unshift(bet);
-        //this.safeguards.betsByMarket[currentMarket.id].unshift(betToScan);
         if (this.settings.autoLiquidate) {
             this.placeLiquidationOrder(bet);
         }
