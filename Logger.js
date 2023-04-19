@@ -8,7 +8,7 @@ export class Logger {
     constructor(filename) {
 
         this.clock = new Date();
-        this.stream = createWriteStream("/temp/"+filename+"_"+dateFormat(this.clock, 'yyyy-mm-d_h-MMTT')+".txt", { flag: "a" });
+        this.stream = createWriteStream(process.env.CACHEDIR+"/"+filename+"_"+dateFormat(this.clock, 'yyyy-mm-d_h-MMTT')+".txt", { flag: "a" });
     }
 
     //logs can't write objects like the console can.
