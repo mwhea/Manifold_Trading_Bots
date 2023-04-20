@@ -53,6 +53,7 @@ while (true) {
         catch (e) {
             whaler.log.write(e.message);
             whaler.gracefulShutdown();
+            throw (e);
         }
     }
 

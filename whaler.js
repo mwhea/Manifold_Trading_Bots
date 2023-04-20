@@ -1011,7 +1011,7 @@ export class Whaler {
         
         if (outgoingCash > OUTGOING_LIMIT) {
             this.log.write("Exceeded outgoing cash limit");
-            await this.gracefulShutdown();
+            this.gracefulShutdown();
 
         }
 
@@ -1055,8 +1055,8 @@ export class Whaler {
         }
     }
 
-    async gracefulShutdown(){
+    gracefulShutdown(){
         
-        await this.cache.saveCache();
+        this.cache.saveCache();
     }
 }
