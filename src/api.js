@@ -2,7 +2,7 @@ import 'dotenv/config'
 import fetch from 'node-fetch'
 import {
   sleep
-} from './utility_functions.js';
+} from './utilityFunctions.js';
 
 const API_URL = process.env.APIURL;
 

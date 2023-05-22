@@ -24,7 +24,7 @@ import { SECOND, MINUTE, HOUR, DAY } from "./timeWords.js";
 
 import { Logger } from "./Logger.js";
 
-import { sleep } from './utility_functions.js';
+import { sleep } from './utilityFunctions.js';
 import { markAsUntransferable } from 'worker_threads';
 
 const CACHEDIR = process.env.CACHEDIR;

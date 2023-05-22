@@ -23,7 +23,7 @@ const sleep = (ms) => {
 
 let botSettings = JSON.parse(
     await readFile(
-        new URL('./botsettings.json', import.meta.url)
+        new URL('../botSettings.json', import.meta.url)
     )
 );
 

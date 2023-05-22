@@ -22,7 +22,7 @@ import {
     roundToPercent,
     isUnfilledLimitOrder,
     sleep
-} from './utility_functions.js';
+} from './utilityFunctions.js';
 
 import {
     DANGEROUS,
