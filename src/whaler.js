@@ -349,7 +349,7 @@ export class Whaler {
         }
 
         let thisCurve = undefined;
-        let whiffs = 0;
+        let consecutiveWhiffs = 0;
 
         let attempts = [];
 
@@ -360,9 +360,14 @@ export class Whaler {
 
             if (newBetsExpectedAt === undefined) {
                 newBetsExpectedAt = (new Date()).getTime();
-                lastBet = (await latestBets(1))[0].id;
+                try {
+                    lastBet = (await latestBets(1))[0].id;
+                }
+                catch (e) {
+                    this.log.write("ERROR: "+e.Message);
+                }
                 thisCurve = notACurve;
-            } else if (whiffs > 10) {
+            } else if (consecutiveWhiffs > 10) {
                 thisCurve = notACurve;
                 initialNumOfBets = 2;
             } else if (!this.settings.cachingActive) {
@@ -393,26 +398,27 @@ export class Whaler {
                         let thisAttempt = attempts.shift();
 
                         let theseBets = undefined;
+                        let dudResponse = false;
+
                         try {
-                            theseBets = await thisAttempt.latestBets;
+                            theseBets = await thisAttempt.latestBets;                            
+                            // It crashed on theseBets[0].id. 
+                            // I've encased in a trycatch for now, but try to get to the bottom of this.
+                            // I looked and the output is { error: 'Error while fetching bets: [object Object]' }
+                            // I think that stringified object comes from the server and will be unreadable to me.
+                            theseBets[0].id;
                         }
                         catch (e) {
-                            console.log(e);
+                            this.log.write("ERROR: "+e.Message);
+                            if (theseBets!==undefined){ 
+                                this.log.write(theseBets);
+                            }
+                            dudResponse=true;
+                            consecutiveWhiffs++;
                         }
-                        if (theseBets === undefined) {
-                            whiffs++;
-                        }
-                        else {
-                            whiffs--;
 
-                            //TODO: crashed on theseBets[0].id. I've encased in a trycatch for now, but try to get to the bottom of this.
-                            try{
-                                theseBets[0].id;
-                            }
-                            catch (e){
-                                console.log(e);
-                                console.log(theseBets);
-                            }
+                        if (!dudResponse) {
+                            consecutiveWhiffs=0;
 
                             if ( //if it's a bet we haven't seen yet
                                 lastBet != theseBets[0].id
@@ -420,7 +426,12 @@ export class Whaler {
                             ) {
                                 //send it for analysis and counterbetting
                                 //you should probably move the requerying if inadequate to here
-                                await this.detectChanges(theseBets);
+                                try{ 
+                                    await this.detectChanges(theseBets);                
+                                }
+                                catch (e) {
+                                    this.log.write("ERROR: "+e.Message);
+                                }
                                 penultimateBet = lastBet;
                                 lastBet = theseBets[0].id;
                                 if (this.settings.cachingActive) {
@@ -431,6 +442,7 @@ export class Whaler {
                                 }
                             }
                         }
+                    
                     }
                     else {
                         j++;
@@ -494,12 +506,12 @@ export class Whaler {
                 }
             }
             catch (e) {
-                console.log(e);
-                this.log.write(e.message);
+                this.log.write("ERROR: "+e.message);
                 return;
             }
         }
-        if(indexOfLastScan === undefined){
+        if (indexOfLastScan === undefined) {
+            //TODO: Print a list of the newest bets as well as the last familiar one.
             throw new Error("Backup bet gathering failed.");
         }
 
