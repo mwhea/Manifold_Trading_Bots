@@ -572,6 +572,9 @@ export class Whaler {
      * ^ TO-DO: make the code more readable by just useing Math.ceil and Math.floor for that.
      */
     async aggregateBets(bets) {
+        if (bets===undefined || bets.length===0){
+            this.log.write("ERROR: Tried to aggregate "+bets);
+        }
         let currentMarket = this.cache.getMarketById(bets[0].contractId);
 
         let betToScan = {};
