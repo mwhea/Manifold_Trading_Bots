@@ -2,9 +2,10 @@
   "name": "manifold-bots",
   "version": "1.0.0",
   "description": "About 20% of Manifold markets take the form \"Will [EVENT] happen by [DATE].\" In theory, when the event in question is unscheduled, the probabilities in these markets should slope gradually downwards over the course of their lifespan. The event has failed to happen and the remaining time for it to do so has diminished.",
-  "main": "botOrchestrator.js",
+  "main": "src/botOrchestrator.js",
   "type": "module",
   "scripts": {
+    "start": "node src/botOrchestrator.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
