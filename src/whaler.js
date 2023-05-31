@@ -574,6 +574,7 @@ export class Whaler {
     async aggregateBets(bets) {
         if (bets===undefined || bets.length===0){
             this.log.write("ERROR: Tried to aggregate "+bets);
+            return [];
         }
         let currentMarket = this.cache.getMarketById(bets[0].contractId);
 
