@@ -22,6 +22,3 @@ This bot checks up on a list of such markets and periodically adjusts the probab
 
 ### Also included
 Also included is a tool for rapidly viewing and categorizing markets, under the /marketpicker folder. It's presently in a primitive state and needs to be hosted on localhost to run.
-
-## Streaker
-This code checks if the current user has placed a bet in the last 18 hours, and if not, places a trivial bet to activate the user's betting streak.

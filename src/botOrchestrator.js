@@ -11,7 +11,6 @@ import {
     readFile,
     writeFile
 } from 'fs/promises';
-import { Streaker } from "./streaker.js";
 
 const clock = new Date();
 //note that due to latency the thing only runs about 4 times a sec with zero delay.
@@ -28,7 +27,6 @@ let botSettings = JSON.parse(
 );
 
 const HOUR = 60 * 60 * 1000;
-botSettings.streaker.runEvery = HOUR * 6;
 botSettings.attritionTrader.runEvery = HOUR;
 
 let cycles = 0;
@@ -37,10 +35,6 @@ let vsRuns = 0;
 
 let whaler = new Whaler(botSettings.whaler);
 await whaler.additionalConstruction();
-
-let streaker = new Streaker(botSettings.streaker);
-
-streaker.keepTheStreakAlive();
 
 while (true) {
     

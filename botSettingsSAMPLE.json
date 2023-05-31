@@ -12,12 +12,5 @@
         "runEvery": 50,
         "autoSelloff": true,
         "cachingActive":false
-    },
-    "streaker": {
-        "active" : false,
-        "runEvery": null,
-        "accountsToMaintain": [
-            "Botlab"
-        ]
     }
 } 
