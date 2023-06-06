@@ -42,7 +42,7 @@ import { UT_THRESHOLD } from "./CacheManager.js"
 
 
 const MIN_P_MOVEMENT = .0375;
-const CACHING_DURATION = 15000;
+const CACHING_DURATION = 15 * SECOND;
 const OUTGOING_LIMIT = 3500;
 const BACKUP_EVERY = 3 * HOUR;
 //speeds: (run every n milliseconds)
@@ -335,7 +335,6 @@ export class Whaler {
     async collectBets() {
 
         // here a bunch of various tempos we may desire to query the server according to
-        let cachingInactive = []
         let notACurve = [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000];
         let sparseBellCurve = [-3000, -1000, -100, -35, 0, 35, 100, 1000, 3000];
         let bellCurve = [-3000, -1000, -250, -100, -50, -35, -20, -12, -5, 0, 5, 12, 20, 35, 50, 100, 250, 1000, 3000];
@@ -343,12 +342,6 @@ export class Whaler {
        
         for (let i in bellCurve) {
             bellCurve[i] -= extraOffset;
-        }
-
-        let num = 0;
-        while (num <= CACHING_DURATION) {
-            cachingInactive.push(num);
-            num += this.getSpeed();
         }
 
         let thisCurve = undefined;
@@ -372,9 +365,6 @@ export class Whaler {
                 thisCurve = notACurve;
             } else if (consecutiveWhiffs > 10) {
                 thisCurve = notACurve;
-                initialNumOfBets = 2;
-            } else if (!this.settings.cachingActive) {
-                thisCurve = cachingInactive;
                 initialNumOfBets = 2;
             } else {
                 //since speeds by default measure milliseconds per poll, "greater than" a given speed in fact measures being slower
@@ -433,12 +423,11 @@ export class Whaler {
                                 this.penultimateBetSeen = this.lastBetSeen;
                                 this.lastBetSeen = theseBets[0].id;
 
-                                if (this.settings.cachingActive) {
-                                    this.log.write("Timing was off by " + thisCurve[i] + " milliseconds");
-                                    this.newBetsExpectedAt = thisAttempt.sentTime + CACHING_DURATION;
-                                    caughtOne = true;
-                                    attempts = [];
-                                }
+                                this.log.write("Timing was off by " + thisCurve[i] + " milliseconds");
+                                this.newBetsExpectedAt = thisAttempt.sentTime + CACHING_DURATION;
+                                caughtOne = true;
+                                attempts = [];
+                                
                                 try{ 
                                     return theseBets;                
                                 }
@@ -463,12 +452,9 @@ export class Whaler {
                 }
             }
 
-            if (!caughtOne || !this.settings.cachingActive) {
+            if (!caughtOne) {
                 //on no new bets in 15 secs:
                 this.newBetsExpectedAt += CACHING_DURATION;
-            }
-            if (!caughtOne) {
-
                 this.log.write("....");
                 if ((new Date()).getTime() > this.timeOfLastBackup + BACKUP_EVERY) {
                     this.performMaintenance();
