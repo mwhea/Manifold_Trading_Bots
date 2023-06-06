@@ -377,7 +377,7 @@ export class Whaler {
                 thisCurve = cachingInactive;
                 initialNumOfBets = 2;
             } else {
-                //since speeds by defaut measure milliseconds per poll, greater than a speed in fact measures being slower
+                //since speeds by default measure milliseconds per poll, "greater than" a given speed in fact measures being slower
                 if (this.getSpeed()>NORMAL){ 
                     thisCurve = sparseBellCurve;
                 }
@@ -480,7 +480,7 @@ export class Whaler {
 
     /**
      * This function scans the /bets endpoint for new bets coming in.
-     * @returns array of all markets in which new bets have been placed
+     * @returns array of all markets in which new bets have been placed (with the new bets added to the market bets prop)
      */
     async prepBetsList(nb) {
 
@@ -906,7 +906,7 @@ export class Whaler {
                                                     tryAgainIn = 0;
                                                 }
                                                 catch (e) {
-                                                    this.log.write("Failed to cancel bet: " + e.message);
+                                                    this.log.write("ERROR: Failed to cancel bet: " + e.message);
                                                     tryAgainIn *= 2;
                                                 }
                                             }
@@ -915,7 +915,7 @@ export class Whaler {
                                     )
                                     ).betId;
                                 } catch (e) {
-                                    this.log.write("awaited code crashed while placing bet.");
+                                    this.log.write("ERROR: awaited code crashed while placing bet.");
                                 }
                             }
                             else if (this.settings.mode === "dry-run" || this.settings.mode === "dry-run-w-mock-betting") {
@@ -923,8 +923,8 @@ export class Whaler {
                                 bet.shares = bet.amount / bet.limitProb;
                             }
 
-                            //Bet logging and debriefing is found elsewhere: we need to get a copy of the bet from Manifold's servers because eg. 
-                            // front-running may have cause it to have purchased different quantities, at different prices, than expected
+                            // Bet logging and debriefing is found elsewhere: we need to get a copy of the bet from Manifold's servers because eg. 
+                            // front-running may have caused it to have purchased different quantities, at different prices, than expected
                         }
                     }
                 }

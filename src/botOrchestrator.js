@@ -31,7 +31,6 @@ botSettings.attritionTrader.runEvery = HOUR;
 
 let cycles = 0;
 //let runTill = new Date('09/25/2022 07:00')
-let vsRuns = 0;
 
 let whaler = new Whaler(botSettings.whaler);
 await whaler.additionalConstruction();
