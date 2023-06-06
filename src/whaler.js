@@ -64,7 +64,12 @@ export class Whaler {
         this.settings = whalerSettings;
         this.adjustedSpeed = this.settings.speed;
 
-        this.lastScannedBet = undefined;
+        this.newBetsExpectedAt = undefined;
+
+        this.lastBetSeen = undefined;
+        this.penultimateBetSeen = undefined;
+
+        this.lastBetAnalyzed = undefined;
 
         this.clock = new Date();
         this.ellipsesDisplay = 0;
@@ -90,7 +95,8 @@ export class Whaler {
 
         let isCacheFull = this.cache.fillCaches();
 
-        this.lastScannedBet = (await latestBets(1))[0].id;
+        this.lastBetSeen = (await latestBets(1))[0].id;
+        this.lastBetAnalyzed = this.lastBetSeen;
 
         await isCacheFull;
 
@@ -328,19 +334,16 @@ export class Whaler {
      */
     async collectBets() {
 
-        let newBetsExpectedAt = undefined;
-        let lastBet = undefined;
-        let penultimateBet = undefined;
-
         // here a bunch of various tempos we may desire to query the server according to
+        let cachingInactive = []
         let notACurve = [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000];
         let sparseBellCurve = [-3000, -1000, -100, -35, 0, 35, 100, 1000, 3000];
         let bellCurve = [-3000, -1000, -250, -100, -50, -35, -20, -12, -5, 0, 5, 12, 20, 35, 50, 100, 250, 1000, 3000];
         let extraOffset = -50;
+       
         for (let i in bellCurve) {
             bellCurve[i] -= extraOffset;
         }
-        let cachingInactive = []
 
         let num = 0;
         while (num <= CACHING_DURATION) {
@@ -358,10 +361,10 @@ export class Whaler {
             let caughtOne = false;
             let initialNumOfBets = 2;
 
-            if (newBetsExpectedAt === undefined) {
-                newBetsExpectedAt = (new Date()).getTime();
+            if (this.newBetsExpectedAt === undefined) {
+                this.newBetsExpectedAt = (new Date()).getTime();
                 try {
-                    lastBet = (await latestBets(1))[0].id;
+                    this.lastBetSeen = (await latestBets(1))[0].id;
                 }
                 catch (e) {
                     this.log.write("ERROR: "+e.Message);
@@ -421,24 +424,26 @@ export class Whaler {
                             consecutiveWhiffs=0;
 
                             if ( //if it's a bet we haven't seen yet
-                                lastBet != theseBets[0].id
-                                && penultimateBet != theseBets[0].id
+                                this.lastBetSeen != theseBets[0].id
+                                && this.penultimateBetSeen != theseBets[0].id
                             ) {
                                 //send it for analysis and counterbetting
                                 //you should probably move the requerying if inadequate to here
+
+                                this.penultimateBetSeen = this.lastBetSeen;
+                                this.lastBetSeen = theseBets[0].id;
+
+                                if (this.settings.cachingActive) {
+                                    this.log.write("Timing was off by " + thisCurve[i] + " milliseconds");
+                                    this.newBetsExpectedAt = thisAttempt.sentTime + CACHING_DURATION;
+                                    caughtOne = true;
+                                    attempts = [];
+                                }
                                 try{ 
-                                    await this.detectChanges(theseBets);                
+                                    return theseBets;                
                                 }
                                 catch (e) {
                                     this.log.write("ERROR: "+e.Message);
-                                }
-                                penultimateBet = lastBet;
-                                lastBet = theseBets[0].id;
-                                if (this.settings.cachingActive) {
-                                    this.log.write("Timing was off by " + thisCurve[i] + " milliseconds");
-                                    newBetsExpectedAt = thisAttempt.sentTime + CACHING_DURATION;
-                                    caughtOne = true;
-                                    attempts = [];
                                 }
                             }
                         }
@@ -450,7 +455,7 @@ export class Whaler {
                 }
 
                 // If enough time has elapsed, add a new request to the queue
-                if ((new Date()).getTime() > newBetsExpectedAt + thisCurve[i]) {
+                if ((new Date()).getTime() > this.newBetsExpectedAt + thisCurve[i]) {
 
                     attempts.push({ "latestBets": latestBets(initialNumOfBets), "sentTime": (new Date()).getTime() });
                     i++;
@@ -460,7 +465,7 @@ export class Whaler {
 
             if (!caughtOne || !this.settings.cachingActive) {
                 //on no new bets in 15 secs:
-                newBetsExpectedAt += CACHING_DURATION;
+                this.newBetsExpectedAt += CACHING_DURATION;
             }
             if (!caughtOne) {
 
@@ -477,7 +482,7 @@ export class Whaler {
      * This function scans the /bets endpoint for new bets coming in.
      * @returns array of all markets in which new bets have been placed
      */
-    async detectChanges(nb) {
+    async prepBetsList(nb) {
 
         let changedMarkets = [];
 
@@ -485,24 +490,24 @@ export class Whaler {
 
         let indexOfLastScan = undefined;
 
-        for (let i = 0; i < newBets.length - 1; i++) {
-            if (newBets[i].id === this.lastScannedBet) {
+        for (let i = 0; i < newBets.length - 1 && indexOfLastScan === undefined; i++) {
+            if (newBets[i].id === this.lastBetAnalyzed) {
                 indexOfLastScan = i;
             }
         }
 
-        let betsToGet = 100;
-        while (indexOfLastScan === undefined && betsToGet<2000) {
+        let betsToGet = 200;
+        while (indexOfLastScan === undefined && betsToGet<=2000) {
             try {
                 newBets = await latestBets(betsToGet);
                 for (let i = 0; i < newBets.length - 1; i++) {
-                    if (newBets[i].id === this.lastScannedBet) {
+                    if (newBets[i].id === this.lastBetAnalyzed) {
                         indexOfLastScan = i;
                     }
                 }
                 if (indexOfLastScan === undefined) {
-                    this.log.write("NewBets collection RERUN failed (id of lastscannedbet: " + this.lastScannedBet + ")");
-                    betsToGet*=2;
+                    this.log.write("NewBets collection RERUN failed (id of lastscannedbet: " + this.lastBetAnalyzed + ")");
+                    betsToGet+=300;
                 }
             }
             catch (e) {
@@ -545,7 +550,8 @@ export class Whaler {
             }
         }
 
-        this.lastScannedBet = newBets[0].id;
+        this.lastBetAnalyzed = newBets[0].id;
+
         this.timeOfLastScan = newBets[0].createdTime;
 
         //if nothing has been logged for a while, print some ellipses to it's clear the program is still active.
@@ -554,7 +560,7 @@ export class Whaler {
         //     this.ellipsesDisplay++;
         // }
 
-        this.huntWhales(changedMarkets);
+        return changedMarkets;
 
     }
 
@@ -1027,7 +1033,7 @@ export class Whaler {
         
         if (outgoingCash > OUTGOING_LIMIT) {
             this.log.write("Exceeded outgoing cash limit");
-            this.gracefulShutdown();
+            throw new Error("Exceeded outgoing cash limit");
 
         }
 

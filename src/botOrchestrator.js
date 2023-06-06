@@ -36,19 +36,35 @@ let vsRuns = 0;
 let whaler = new Whaler(botSettings.whaler);
 await whaler.additionalConstruction();
 
+let prevFinished = true;
+
 while (true) {
     
     //attritionTrade();
 
     if (botSettings.whaler.active) {
-        try {
-            await whaler.collectBets();
+
+        if (prevFinished) {
+            prevFinished = false
+            whaler.collectBets()
+                .then((newBets) => {
+                    //console.log(newBets.length+" new bets")
+                    return whaler.prepBetsList(newBets);
+                })
+                .then((changedMarkets) => {
+                    return whaler.huntWhales(changedMarkets);
+                })
+                .then(() => {
+                    prevFinished = true;
+                })
+                .catch((e) => {
+                    whaler.log.write(e.message);
+                    whaler.gracefulShutdown();
+                    throw (e);
+                })
         }
-        catch (e) {
-            whaler.log.write(e.message);
-            whaler.gracefulShutdown();
-            throw (e);
-        }
+
+       // whaler.lowPriority();
     }
 
     cycles++;
