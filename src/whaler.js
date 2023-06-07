@@ -40,8 +40,6 @@ import {
 import {SECOND, MINUTE, HOUR, DAY} from "./timeWords.js";
 import { UT_THRESHOLD } from "./CacheManager.js"
 
-
-
 const MIN_P_MOVEMENT = .0375;
 const CACHING_DURATION = 15 * SECOND;
 const OUTGOING_LIMIT = 3500;
@@ -104,8 +102,6 @@ export class Whaler {
         this.performMaintenance();
 
     }
-
-    
 
     getSpeed() {
         return this.adjustedSpeed;
@@ -367,12 +363,15 @@ export class Whaler {
                     this.log.write("ERROR: "+e.Message);
                 }
                 thisCurve = notACurve;
-            } else if (consecutiveWhiffs > 10 || this.getSpeed()>=LEISURELY) {
+            } else if (consecutiveWhiffs > 10 ) {
                 thisCurve = oncePerCacheRefresh;
                 initialNumOfBets = 2;
             } else {
                 //since speeds by default measure milliseconds per poll, "greater than" a given speed in fact measures being slower
-                if (this.getSpeed()>NORMAL){ 
+                if (this.getSpeed()>=LEISURELY){
+                    thisCurve = oncePerCacheRefresh;
+                }
+                else if (this.getSpeed()>=NORMAL){ 
                     thisCurve = sparseBellCurve;
                 }
                 else{
