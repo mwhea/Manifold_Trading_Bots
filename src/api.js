@@ -80,8 +80,8 @@ export const fetchBetsByMarket = async (id, limit) => {
   }
 }
 
-export const fetchUsersBets = async (username, bets) => {
-  let url = `${API_URL}/bets?username=${username}`;
+export const fetchUsersBets = async (userId, bets) => {
+  let url = `${API_URL}/bets?userId=${userId}`;
   if (bets !== undefined) {
     url += `&limit=${bets}`;
   }

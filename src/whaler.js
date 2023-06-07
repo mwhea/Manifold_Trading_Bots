@@ -31,6 +31,7 @@ import {
     RIVAL_BOT,
     ACC,
     SAFE,
+    notableUsers,
     getUserTrait,
     checkUserTrait
 } from "./notableUsers.js"
@@ -103,6 +104,8 @@ export class Whaler {
         this.performMaintenance();
 
     }
+
+    
 
     getSpeed() {
         return this.adjustedSpeed;
@@ -924,18 +927,18 @@ export class Whaler {
     /**
      * Checks if a user has placed any bets recently. 
      * Used to keep an eye on rival bots.
-     * @param {*} username 
+     * @param {*} userId 
      * @returns 
      */
-    async isUserOnline(username) {
+    async isUserOnline(userId) {
         try {
-            let vbets = await fetchUsersBets(username, 1);
-            if (vbets[0].createdTime < (new Date()).getTime() - (2 * HOUR)) {
+            let vbets = await fetchUsersBets(userId, 1);
+            if (vbets[0].createdTime < (new Date()).getTime() - (4 * HOUR)) {
                 return false;
             }
         }
         catch (e) {
-            console.log(`Failed to get ${username}'s bets. Defaulting to 'offline'.`);
+            console.log(`Failed to get ${getUserTrait(userId, "name")}'s bets. Defaulting to 'offline'.`);
             return false;
         }
         return true;
@@ -955,30 +958,29 @@ export class Whaler {
         let maintenanceReport = "Maintenance Report: ";
         let newSpeed = this.getSpeed();
 
+        let activityReports = {};
+
+        for (let u in notableUsers){
+            if (checkUserTrait(notableUsers[u].id, "type", RIVAL_BOT)) {
+                activityReports[getUserTrait(notableUsers[u].id, "name")] = await this.isUserOnline(notableUsers[u].id);
+            }
+        }
+
         //if it's ISP no-fee hours, speed up.
         if ((new Date()).getHours() > 2 && (new Date()).getHours() < 14) {
             newSpeed = 100;
             maintenanceReport += `Base speed: ${newSpeed} (Cheap internet, using fast base rate) ==> `;
         }
-
-        let activityReports = { "v": await this.isUserOnline("v"), "acc": await this.isUserOnline("acc") };
-
-        //if v hasn't bet in 4 hours, slow down.
-        if (activityReports.acc && !activityReports.v) {
-            newSpeed = 500;
-        }
-        else if (!activityReports.acc && !activityReports.v) {
-            newSpeed = 100;
-        }
-        else if (activityReports.v) {
-            newSpeed /= 4;
-        }
-
         maintenanceReport += `Adjusted Speed: ${newSpeed} `;
-        maintenanceReport += "( Bots online: [ ";
-        if (activityReports.acc ) { maintenanceReport += "acc"; }
-        if (activityReports.v && activityReports.acc ) { maintenanceReport += ", "; }
-        if (activityReports.v ) { maintenanceReport += "v"; }
+
+        //TODO: do the commas properly without this clever workaround
+        maintenanceReport += "( Bots online: [ Botlab";
+        for (let u in activityReports){
+            if (activityReports[u]){
+            maintenanceReport += ", "; 
+            maintenanceReport += u; 
+            }
+        }
         maintenanceReport += " ] )";
 
         this.log.write(maintenanceReport);

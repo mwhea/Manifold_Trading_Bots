@@ -21,18 +21,19 @@ export function getUserTrait(uid, prop) {
 
 }
 
+/**
+ * args: uid, prop, value
+ */
 export function checkUserTrait(uid, prop, value) {
-
 
     if (getUserTrait(uid, prop) === value) {
         return true;
     }
     return false;
 
-
 }
 
-const notableUsers = [
+export const notableUsers = [
     {
         "id": "ilJdhpLzZZSUgzueJOs2cbRnJn82",
         "name": "Botlab",
@@ -57,6 +58,16 @@ const notableUsers = [
     {
         "id": "dNgcgrHGn8ZB30hyDARNtbjvGPm1",
         "name": "arr", //an arbitrage bot
+        "type": RIVAL_BOT
+    },
+    {
+        "id": "kzjQhRJ4GINn5umiq2ee1QvaMcE2",
+        "name": "veat", //another arbitrage bot
+        "type": RIVAL_BOT
+    },
+    {
+        "id": "P7PV13rynzOHyxm8AiXIN568bmF2",
+        "name": "burkebot", //Kevin Burke's multipurpose bot
         "type": RIVAL_BOT
     },
     {
