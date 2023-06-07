@@ -8,17 +8,15 @@ import {
 } from "./Whaler.js";
 
 import {
+    sleep
+} from "./utilityFunctions.js"
+
+import {
     readFile,
     writeFile
 } from 'fs/promises';
 
-const clock = new Date();
-//note that due to latency the thing only runs about 4 times a sec with zero delay.
 const CYCLETIME = 5;
-
-const sleep = (ms) => {
-    return new Promise(resolve => setTimeout(resolve, ms))
-}
 
 let botSettings = JSON.parse(
     await readFile(
@@ -32,6 +30,7 @@ botSettings.attritionTrader.runEvery = HOUR;
 let cycles = 0;
 //let runTill = new Date('09/25/2022 07:00')
 
+//TODO: override settings with command line args
 let whaler = new Whaler(botSettings.whaler);
 await whaler.additionalConstruction();
 
