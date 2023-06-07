@@ -50,7 +50,7 @@ const BACKUP_EVERY = 3 * HOUR;
 const HYPERDRIVE = 10;
 const FAST = 50;
 const NORMAL = 250;
-const LEISURELY = 1000;
+const LEISURELY = 15 * SECOND;
 
 /**
  * The Whaler bot detects large, misjudged trades by "noobs" or "trolls," 
@@ -339,6 +339,7 @@ export class Whaler {
 
         // here a bunch of various tempos we may desire to query the server according to
         let notACurve = [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000];
+        let oncePerCacheRefresh = [0];
         let sparseBellCurve = [-3000, -1000, -100, -35, 0, 35, 100, 1000, 3000];
         let bellCurve = [-3000, -1000, -250, -100, -50, -35, -20, -12, -5, 0, 5, 12, 20, 35, 50, 100, 250, 1000, 3000];
         let extraOffset = -50;
@@ -366,8 +367,8 @@ export class Whaler {
                     this.log.write("ERROR: "+e.Message);
                 }
                 thisCurve = notACurve;
-            } else if (consecutiveWhiffs > 10) {
-                thisCurve = notACurve;
+            } else if (consecutiveWhiffs > 10 || this.getSpeed()>=LEISURELY) {
+                thisCurve = oncePerCacheRefresh;
                 initialNumOfBets = 2;
             } else {
                 //since speeds by default measure milliseconds per poll, "greater than" a given speed in fact measures being slower
