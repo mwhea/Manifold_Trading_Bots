@@ -370,16 +370,22 @@ export class CacheManager {
         //note that the main market-finding functionality is applicable to the cache, not arbitrary lists of markets
         //so we're using a lower level function is calls that can be applied to specific arrays
 
-        this.blacklist = [];
-        for (let i in this.blacklistedGroups) {
-            let newMkts = await fetchMarketsInGroup(this.blacklistedGroups[i]);
-            for (let j in newMkts) {
-                if (!newMkts[j].isResolved){
-                this.blacklist.push(newMkts[j]);
+        let newBlacklist = [];
+        try {
+            for (let i in this.blacklistedGroups) {
+                let newMkts = await fetchMarketsInGroup(this.blacklistedGroups[i]);
+                for (let j in newMkts) {
+                    if (!newMkts[j].isResolved) {
+                        newBlacklist.push(newMkts[j]);
+                    }
                 }
             }
+            newBlacklist = this.sortListById(newBlacklist);
         }
-        this.blacklist = this.sortListById(this.blacklist);
+        catch (e) {
+            this.log.write("ERROR: Failed to update blacklist")
+            newBlacklist = this.blacklist;
+        }
         return this.blacklist;
     }
 
