@@ -27,7 +27,6 @@ let botSettings = JSON.parse(
 const HOUR = 60 * 60 * 1000;
 botSettings.attritionTrader.runEvery = HOUR;
 
-let cycles = 0;
 //let runTill = new Date('09/25/2022 07:00')
 
 //TODO: override settings with command line args
@@ -64,8 +63,6 @@ while (true) {
 
        // whaler.lowPriority();
     }
-
-    cycles++;
 
     await sleep(CYCLETIME);
 

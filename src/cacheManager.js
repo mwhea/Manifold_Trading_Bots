@@ -342,8 +342,7 @@ export class CacheManager {
             renameSync(`${CACHEDIR}/markets.json`, `${CACHEDIR}/marketsBACKUP${dateFormat(undefined, 'yyyy-mm-d_h-MM_TT')}.json`);
             this.log.write("Cache backup created");
         } catch (e) {
-            this.log.write("Cache backup failed");
-            this.log.write("Cache backup failed: " + e);
+            this.log.write("ERROR: Cache backup failed: " + e);
             console.log(e)
         }
 
