@@ -3,13 +3,9 @@ import {
     fetchMe
 } from "./api.js";
 
-import {
-    Whaler
-} from "./Whaler.js";
-
-import {
-    sleep
-} from "./utilityFunctions.js"
+import { Whaler } from "./Whaler.js";
+import { sleep } from "./utilityFunctions.js"
+import {SECOND, MINUTE, HOUR, DAY} from "./timeWords.js";
 
 import {
     readFile,
@@ -24,7 +20,6 @@ let botSettings = JSON.parse(
     )
 );
 
-const HOUR = 60 * 60 * 1000;
 botSettings.attritionTrader.runEvery = HOUR;
 
 //let runTill = new Date('09/25/2022 07:00')
