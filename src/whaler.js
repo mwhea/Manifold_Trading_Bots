@@ -503,7 +503,10 @@ export class Whaler {
         }
         if (indexOfLastScan === undefined) {
             //TODO: Print a list of the newest bets as well as the last familiar one.
-            throw new Error("Backup bet gathering failed.");
+            this.log.write("ERROR: Backup bet gathering failed.");
+            this.lastBetSeen = (await latestBets(1))[0].id;
+            this.lastBetAnalyzed = this.lastBetSeen;
+            return;
         }
 
         // among the bets collected, scan all the bets made since you last ran this method.
